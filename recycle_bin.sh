@@ -95,10 +95,19 @@ get_metadata(){
     local og_filename="$file"
     local og_abspath="$(realpath "$file")"
     local del_time="$(date +"[%Y/%m/%d %H:%M:%S]")"
-    local file_size=&(( -f "$file" ? $(stat -c %s "$file") : $(du -sb "$file" | cut -f1) ))
-    local file_type=$(( -f "$file" ? "file" : "directory"))
-    local permissions=$(stat -c %a)
-    local og_owner=$(stat -c %U:%G)
+    if [[ -f "$file" ]]; then
+        local file_size=$(stat -c %s "$file" 2>/dev/null || du -sb "$file" | cut -f1)
+    else
+        local file_size=$(du -sb "$file" | cut -f1 2>/dev/null)
+    fi
+
+    if [[ -f "$file" ]]; then
+        local file_type="file"
+    else
+        local file_type="directory"
+    fi
+    local permissions=$(stat -c %a "$file")
+    local og_owner=$(stat -c %U:%G "$file")
 
     echo "$og_filename,$og_abspath,$del_time,$file_size,$file_type,$permissions,$og_owner"
     return 0
@@ -116,7 +125,11 @@ delete_file(){
     for var in "$@"
     do 
         #Skip invalid input
-        if [ ! -f $var ] && [ ! -d $var ]; then 
+        if [[ "$var" == *"recycle_bin.sh"* ]] || [[ "$var" == *"README.md"* ]] || [[ "$var" == *"TECHNICAL_DOC.md"* ]] || [[ "$var" == *"TESTING.md"* ]] || [[ "$var" == *"test_suite.sh"* ]] || [[ "$var" == *"screenshots/"* ]]; then
+            echo "Cannot delete Project Structure items"
+            log "Error: Cannot delete Project Structure items"
+            continue
+        elif [ ! -f $var ] && [ ! -d $var ]; then 
             echo "\"$var\" isn't a filename or directory"
             log "Failed to delete $(pwd)/$var - There is no such File/Dir"
             continue
@@ -127,13 +140,14 @@ delete_file(){
             sed -i "2c $new_id_counter" $RECYCLE_BIN_DIR/config
              ##Atualizar a variavel Id_Counter para o novo Id
             id_counter=$(get_id)
+
+
+            echo "$id_counter,$(get_metadata $var)" >> $METADATA_FILE
+            mv "$var" "$RECYCLE_BIN_DIR/files/$id_counter"
+
+            echo "$(realpath "$var") was deleted"
+            log "$(realpath "$var") Was deleted; ID:$id_counter"
         fi
-
-
-        mv "$var" "$RECYCLE_BIN_DIR/files/$id_counter"
-
-        echo "$(realpath "$var") was deleted"
-        log "$(realpath "$var") Was deleted; ID:$id_counter"
-
     done
 }
+delete_file
