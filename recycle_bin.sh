@@ -95,8 +95,12 @@ get_metadata(){
     local og_filename="$file"
     local og_abspath="$(realpath "$file")"
     local del_time="$(date +"[%Y/%m/%d %H:%M:%S]")"
-    local file_size=&(( -f "$file" ? $(stat -c %s "$file") : $(du -sb "$file") ))
+    local file_size=&(( -f "$file" ? $(stat -c %s "$file") : $(du -sb "$file" | cut -f1) ))
+    local file_type=$(( -f "$file" ? "file" : "directory"))
+    local permissions=$(stat -c %a)
+    local og_owner=$(stat -c %U:%G)
 
+    echo "$og_filename,$og_abspath,$del_time,$file_size,$file_type,$permissions,$og_owner"
     return 0
 }
 
