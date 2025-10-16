@@ -113,7 +113,7 @@ get_metadata(){
     return 0
 }
 
-#################################################
+#################################################TODO: No recursive thing yet
 # Function: delete_file
 # Description: Apagar ficheiros
 # Parameters: Pelo menos 1
@@ -121,33 +121,28 @@ get_metadata(){
 #################################################
 delete_file(){
     #Para cada um dos argumentos fazer o seguinte
-    id_counter=$(get_id)
     for var in "$@"
     do 
         #Skip invalid input
-        if [[ "$var" == *"recycle_bin.sh"* ]] || [[ "$var" == *"README.md"* ]] || [[ "$var" == *"TECHNICAL_DOC.md"* ]] || [[ "$var" == *"TESTING.md"* ]] || [[ "$var" == *"test_suite.sh"* ]] || [[ "$var" == *"screenshots/"* ]]; then
-            echo "Cannot delete Project Structure items"
-            log "Error: Cannot delete Project Structure items"
-            continue
-        elif [ ! -f $var ] && [ ! -d $var ]; then 
+        if [ ! -e "$var" ]; then 
             echo "\"$var\" isn't a filename or directory"
             log "Failed to delete $(pwd)/$var - There is no such File/Dir"
             continue
-        else 
-            #Caso input seja valido gerar novo Id
-             ##Alterar o documento com o novo Id
-            new_id_counter=$(($id_counter + 1))
-            sed -i "2c $new_id_counter" $RECYCLE_BIN_DIR/config
-             ##Atualizar a variavel Id_Counter para o novo Id
-            id_counter=$(get_id)
-
-
-            echo "$id_counter,$(get_metadata $var)" >> $METADATA_FILE
-            mv "$var" "$RECYCLE_BIN_DIR/files/$id_counter"
-
-            echo "$(realpath "$var") was deleted"
-            log "$(realpath "$var") Was deleted; ID:$id_counter"
+        #FIXME: better checking
+        elif [[ "$var" == "recycle_bin.sh" ]] || [[ "$var" == "README.md" ]] || [[ "$var" == "TECHNICAL_DOC.md" ]] || [[ "$var" == "TESTING.md" ]] || [[ "$var" == "test_suite.sh" ]] || [[ "$var" == ".gitignore" ]]; then
+            echo "Cannot delete Project Structure items"
+            log "Error: Cannot delete Project Structure items"
+            continue
         fi
+
+        update_id
+        echo "$(get_id),$(get_metadata $var)" >> $METADATA_FILE
+        mv "$var" "$RECYCLE_BIN_DIR/files/$(get_id)"
+        
+        echo "$(realpath "$var") was deleted"
+        log "$(realpath "$var") Was deleted; ID:$id_counter"
+
     done
 }
-delete_file
+
+delete_file adad
