@@ -143,6 +143,66 @@ delete_file(){
         log "$(realpath "$var") Was deleted; ID:$id_counter"
 
     done
+    return 0
 }
 
-delete_file adad
+#################################################
+# Function: list_recycled
+# Description: Lsta de todos os elementos da Bin
+# Parameters: 1 or 0
+# Returns: 0 on success
+#################################################
+
+list_recycled(){
+
+    if [ "$#" -eq 0 ]; then
+        awk -F',' '{print "| " $1 , "+| "$2 , "+| " $4 , "+| " $5 , "+|"}' $METADATA_FILE | column -t -s+
+    elif [ "$#" -eq 1 ] && [ "$1" == "--detailed" ]; then
+        awk -F, '{print "| " $1 , "+| " $2 , "+| " $3 , "+| " $4 , "+| " $5 , "+| " $6 , "+| " $7 , "+| " $8 , "+|"}' $METADATA_FILE | column -t -s+
+    elif [ "$#" -eq 1 ] && [ "$1" != "--detailed" ]; then
+        echo "\"$1\" is not recognized as a flag"
+    else
+        echo "list_recycled can only take one argument"
+    fi
+    echo
+}
+
+
+
+
+#################################################
+# Function: main
+# Description: Função principal que seleciona qual função é para correr
+# Parameters: multiple
+# Returns: 0 on success
+#################################################
+main(){
+
+    first_arg=$1
+    shift
+
+    case $first_arg in
+    
+        initialize_recyclebin | 0)
+        initialize_recyclebin
+        ;;
+
+        delete_file | 1)
+        delete_file "$@"
+        ;;
+
+        list_recycled | 2)
+        list_recycled "$@"
+        ;;
+
+
+
+        *)
+        echo "Commands unkown"
+        ;;
+
+    esac
+
+}
+
+main $@
