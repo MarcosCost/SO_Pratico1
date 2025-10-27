@@ -11,7 +11,7 @@ set -e
 
 
 # Global Variables (ALL CAPS)
-RECYCLE_BIN_DIR="$HOME/recycle_bin"    #FIXME: DONT FORGET TO CHANCE DIR NAME TO .recycle_bin BACK, TEMP recycle_bin FOR EASIER BROWSER/TESTING
+RECYCLE_BIN_DIR="./recycle_bin"
 METADATA_FILE="$RECYCLE_BIN_DIR/metadata.db"
 
 
@@ -167,7 +167,92 @@ list_recycled(){
     echo
 }
 
+#################################################
+# Function: empty_recyclebin
+# Description: Esvazia a recycle bin (tudo ou por ID)
+# Parameters: 0 ou 1 (ID específico)
+# Returns: 0 on success
+#################################################
+empty_recyclebin(){
+    # Verificar se há itens na recycle bin
+    if [ ! -s "$METADATA_FILE" ] || [ $(wc -l < "$METADATA_FILE") -le 1 ]; then
+        echo "Recycle bin is already empty"
+        log "Attempted to empty recycle bin - already empty"
+        return 0
+    fi
 
+    # Modo: Empty all
+    if [ $# -eq 0 ]; then
+        echo "WARNING: This will permanently delete ALL items from recycle bin"
+        echo "Are you sure? This cannot be undone (y/n): "
+        read -r confirmation
+
+        case "$confirmation" in
+            y|Y|yes|YES)
+                # Apagar todos os ficheiros
+                rm -rf "$RECYCLE_BIN_DIR/files/"*
+
+                # Reset do metadata file (mantém apenas o header)
+                head -n 1 "$METADATA_FILE" > "$METADATA_FILE.tmp"
+                mv "$METADATA_FILE.tmp" "$METADATA_FILE"
+
+                # Reset do ID counter no config
+                sed -i '2c0' "$RECYCLE_BIN_DIR/config"
+
+                echo "Recycle bin emptied successfully"
+                log "Recycle bin emptied - all items permanently deleted"
+                ;;
+            *)
+                echo "Operation cancelled"
+                log "Empty recycle bin operation cancelled by user"
+                return 0
+                ;;
+        esac
+
+    # Modo: Empty específico por ID
+    elif [ $# -eq 1 ]; then
+        local target_id="$1"
+
+        # Verificar se o ID existe no metadata
+        if ! grep -q "^$target_id," "$METADATA_FILE"; then
+            echo "Error: ID '$target_id' not found in recycle bin"
+            log "Failed to delete item with ID '$target_id' - ID not found"
+            return 1
+        fi
+
+        # Confirmar com o utilizador
+        echo "WARNING: This will permanently delete item with ID: $target_id"
+        echo "Are you sure? This cannot be undone (y/n): "
+        read -r confirmation
+
+        case "$confirmation" in
+            y|Y|yes|YES)
+                # Apagar o ficheiro físico
+                rm -rf "$RECYCLE_BIN_DIR/files/$target_id"
+
+                # Remover do metadata
+                grep -v "^$target_id," "$METADATA_FILE" > "$METADATA_FILE.tmp"
+                mv "$METADATA_FILE.tmp" "$METADATA_FILE"
+
+                echo "Item with ID '$target_id' permanently deleted"
+                log "Item with ID '$target_id' permanently deleted from recycle bin"
+                ;;
+            *)
+                echo "Operation cancelled"
+                log "Delete item operation cancelled by user (ID: $target_id)"
+                return 0
+                ;;
+        esac
+
+    else
+        echo "Error: empty_recyclebin takes 0 or 1 arguments"
+        echo "Usage: empty_recyclebin [ID]"
+        log "ERROR: empty_recyclebin called with incorrect number of arguments: $#"
+        return 1
+    fi
+
+    return 0
+}
 
 
 #################################################
@@ -195,7 +280,9 @@ main(){
         list_recycled "$@"
         ;;
 
-
+        empty_recyclebin | 3)
+        empty_recyclebin "$@"
+        ;;
 
         *)
         echo "Commands unkown"
