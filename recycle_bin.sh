@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+#set -e
 
 #################################################
 # Linux Recycle Bin Simulation
@@ -31,6 +31,7 @@ initialize_recyclebin(){
         printf "MAX_SIZE_MB=1024\n" > "$RECYCLE_BIN_DIR/config"
     fi 
     touch "$RECYCLE_BIN_DIR/recyclebin.log"
+    echo "Recycle Bin initialized sucessfully"
     return 0
 }
 
@@ -113,16 +114,17 @@ delete_file(){
     )
 
     #Para cada um dos argumentos fazer o seguinte
-    for var in "$@"; do
+    for varr in "$@"; do
+        
+        local var="$varr"
+
         #Skip invalid input
         if [ ! -e "$var" ]; then
             echo "\"$var\" isn't a filename or directory"
             log "Failed to delete $(pwd)/$var - There is no such File/Dir"
             continue
         fi
-
         local abs_path=$(realpath "$var" 2>/dev/null)
-
         # Proteção contra auto-deleção do recycle bin
         if [[ "$abs_path" == "$(realpath "$RECYCLE_BIN_DIR" 2>/dev/null)"* ]] ||
            [[ "$abs_path" == "$HOME/.recycle_bin"* ]]; then
@@ -130,7 +132,6 @@ delete_file(){
             log "Attempted to delete recycle bin: $abs_path"
             continue
         fi
-
         # Verificar ficheiros protegidos
         local is_protected=0
         for protected in "${protected_files[@]}"; do
@@ -142,17 +143,29 @@ delete_file(){
                 break
             fi
         done
-
         if [ $is_protected -eq 1 ]; then
             continue
         fi
 
-        local current_id=$(generate_unique_id)
-        echo "$current_id,$(get_metadata $var)" >> $METADATA_FILE
-        mv "$var" "$RECYCLE_BIN_DIR/files/$current_id"
+        if [[ -f $var ]];then
+            local current_id=$(generate_unique_id)
+            echo "$current_id,$(get_metadata $var)" >> $METADATA_FILE
+            mv "$var" "$RECYCLE_BIN_DIR/files/$current_id"
+            echo "$(realpath "$var") was deleted"
+            log "$(realpath "$var") Was deleted; ID:$current_id"
+        elif [[ -d $var ]];then
 
-        echo "$(realpath "$var") was deleted"
-        log "$(realpath "$var") Was deleted; ID:$current_id"
+            for recursive_var in "$var"/*;do
+                delete_file "$recursive_var"
+            done
+
+            local current_id=$(generate_unique_id)
+            echo "$current_id,$(get_metadata $var)" >> $METADATA_FILE
+            mv "$var" "$RECYCLE_BIN_DIR/files/$current_id"
+            echo "$(realpath "$var") was deleted"
+            log "$(realpath "$var") Was deleted; ID:$current_id"
+        fi
+
     done
     return 0
 }
@@ -162,7 +175,7 @@ delete_file(){
 # Description: List all items in recycle bin
 # Parameters: 0 or 1 (--detailed flag)
 # Returns: 0 on success
-#################################################               TODO: File size readable format
+#################################################               TODO: File size readable format, empty filebin
 list_recycled(){
 
     echo
@@ -280,6 +293,76 @@ empty_recyclebin(){
     return 0
 }
 
+#################################################
+# Function: restore_files
+# Description: Restore files by id
+# Parameters: At least 1 (ID)
+# Returns: 0 on success
+#################################################
+restore_files(){
+
+    if [[ "$#" -lt 1 ]]; then
+        echo "Restore Files needs ate least 1 argument"
+        return 1
+    fi
+
+    for var in "$@"; do
+
+        #Modo ID
+        if [[ $var =~ ^[0-9]{10}_[a-zA-Z0-9]{6}$ ]]; then
+
+            # Verificar se o ID existe no metadata
+            if ! grep -q "^$var," "$METADATA_FILE"; then
+                echo "Error: ID '$var' not found in recycle bin"
+                log "Failed to delete item with ID '$var' - ID not found"
+                return 1
+            fi
+
+            #Split metadata into array
+            IFS=',' read -ra arr <<< "$(grep "^$var," "$METADATA_FILE")"
+
+            #check if file is already there
+            if [[ -e "${arr[2]}" ]];then
+
+                # Confirmar com o utilizador
+                echo "WARNING: File already Exists"
+                echo "Do you wish to Override (O), Restore with modified name (M), or Cancel (c) "
+                read -r confirmation
+
+                case "$confirmation" in
+                    O)
+                        mv $RECYCLE_BIN_DIR/files/$var "${arr[2]}"
+                        chmod ${arr[6]} "${arr[2]}"
+                        ;;
+                    M)
+
+                        ;;
+                    *)
+                        echo "Operation cancelled"
+                        return 0
+                        ;;
+                esac
+
+            else
+                mkdir -p "${arr[2]}"
+                mv "$RECYCLE_BIN_DIR/files/$var" "${arr[2]}"
+                chmod ${arr[6]} "${arr[2]}"
+
+            fi
+
+                grep -v "^$var," "$METADATA_FILE" > "$METADATA_FILE.tmp"
+                mv "$METADATA_FILE.tmp" "$METADATA_FILE"  
+
+                echo "File ID $var was restored sucessfully to ${arr[2]}"
+                log "$var restored to ${arr[2]}"
+
+        fi
+
+    done
+    return 0
+
+}
+
 
 #################################################
 # Function: main
@@ -289,7 +372,7 @@ empty_recyclebin(){
 #################################################
 main(){
 
-    first_arg=$1
+    local first_arg=$1
     shift
 
     case $first_arg in
@@ -308,6 +391,10 @@ main(){
 
         empty_recyclebin | 3)
         empty_recyclebin "$@"
+        ;;
+
+        restore_files | 4)
+        restore_files "$@"
         ;;
 
         *)
