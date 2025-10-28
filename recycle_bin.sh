@@ -10,8 +10,9 @@ set -e
 #################################################
 
 # Global Variables (ALL CAPS)
-RECYCLE_BIN_DIR="./recycle_bin"
+RECYCLE_BIN_DIR="$HOME/recycle_bin"
 METADATA_FILE="$RECYCLE_BIN_DIR/metadata.db"
+
 
 #################################################
 # Function: initialize_recyclebin
@@ -71,7 +72,7 @@ generate_unique_id() {
 get_metadata(){
     if [ $# -ne 1 ]; then
         echo "Erro: get_metadata takes 1 argument only"
-        echo "$(date +"[%d/%m/%Y %H:%M:%S]"): ERROR: get_metadata takes 1 argument only" >> $RECYCLE_BIN_DIR/recyclebin.log
+        log "ERROR: get_metadata takes 1 argument only"
         return 1
     fi
     local file="$1"
@@ -103,7 +104,7 @@ get_metadata(){
 # Description: Move files/directories to recycle bin
 # Parameters: At least 1 (file/directory paths)
 # Returns: 0 on success
-#################################################
+#################################################           TODO:recursividade
 delete_file(){
     #ficheiros protegidos (não podem ser apagados)
     local protected_files=(
@@ -161,8 +162,22 @@ delete_file(){
 # Description: List all items in recycle bin
 # Parameters: 0 or 1 (--detailed flag)
 # Returns: 0 on success
-#################################################
+#################################################               TODO: File size readable format
 list_recycled(){
+
+    echo
+    local total_item=$(ls "$RECYCLE_BIN_DIR/files" -1 | wc -l)
+    local total_storage=$(
+        local total=0
+        while IFS= read -r line; do
+
+            IFS=',' read -ra fields <<< "$line"
+            total=$((total + ${fields[4]}))
+
+        done < <(tail -n +2 "$METADATA_FILE")
+        echo $total
+    )
+
     if [ "$#" -eq 0 ]; then
         awk -F',' '{print "| " $1 , "+| "$2 , "+| " $4 , "+| " $5 , "+|"}' $METADATA_FILE | column -t -s+
     elif [ "$#" -eq 1 ] && [ "$1" == "--detailed" ]; then
@@ -172,7 +187,13 @@ list_recycled(){
     else
         echo "list_recycled can only take one argument"
     fi
+
+    printf "\nTotal files: $total_item\n"
+    printf "Total files: $total_storage\n"
+
     echo
+
+
 }
 
 #################################################
@@ -203,9 +224,6 @@ empty_recyclebin(){
                 # Reset do metadata file (mantém apenas o header)
                 head -n 1 "$METADATA_FILE" > "$METADATA_FILE.tmp"
                 mv "$METADATA_FILE.tmp" "$METADATA_FILE"
-
-                # Reset do ID counter no config
-                sed -i '2c0' "$RECYCLE_BIN_DIR/config"
 
                 echo "Recycle bin emptied successfully"
                 log "Recycle bin emptied - all items permanently deleted"
@@ -297,7 +315,7 @@ main(){
         ;;
 
     esac
-
+    return 0
 }
 
 main $@
