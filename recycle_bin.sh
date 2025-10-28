@@ -28,7 +28,7 @@ initialize_recyclebin(){
         printf "ID,ORIGINAL_NAME,ORIGINAL_PATH,DELETION_DATE,FILE_SIZE,FILE_TYPE,PERMISSIONS,OWNER\n" > $METADATA_FILE    
     fi
     if [ ! -f "$RECYCLE_BIN_DIR/config" ]; then
-        printf "MAX_SIZE_MB=1024\n" > "$RECYCLE_BIN_DIR/config"
+        printf "MAX_SIZE_MB=1024\nRETENTION_DAYS=30\n" > "$RECYCLE_BIN_DIR/config"
     fi 
     touch "$RECYCLE_BIN_DIR/recyclebin.log"
     echo "Recycle Bin initialized sucessfully"
@@ -79,7 +79,7 @@ get_metadata(){
     local file="$1"
 
     #Values we need to get:
-    local og_filename="$file"
+    local og_filename="${file##*/}"
     local og_abspath="$(realpath "$file")"
     local del_time="$(date "+%Y-%m-%d %H:%M:%S")"
     if [[ -f "$file" ]]; then
@@ -105,7 +105,7 @@ get_metadata(){
 # Description: Move files/directories to recycle bin
 # Parameters: At least 1 (file/directory paths)
 # Returns: 0 on success
-#################################################           TODO:recursividade
+#################################################
 delete_file(){
     #ficheiros protegidos (não podem ser apagados)
     local protected_files=(
@@ -155,7 +155,8 @@ delete_file(){
             log "$(realpath "$var") Was deleted; ID:$current_id"
         elif [[ -d $var ]];then
 
-            for recursive_var in "$var"/*;do
+            for recursive_var in "$var/*";do
+                [[ -e "$recursive_var" ]] || break
                 delete_file "$recursive_var"
             done
 
@@ -175,7 +176,7 @@ delete_file(){
 # Description: List all items in recycle bin
 # Parameters: 0 or 1 (--detailed flag)
 # Returns: 0 on success
-#################################################               TODO: File size readable format, empty filebin
+#################################################               TODO: File size readable format, empty filebin, better detailed, truncated Id for display
 list_recycled(){
 
     echo
@@ -298,7 +299,7 @@ empty_recyclebin(){
 # Description: Restore files by id
 # Parameters: At least 1 (ID)
 # Returns: 0 on success
-#################################################
+#################################################           TODO:Permission denied at destination;   Disk space issues
 restore_files(){
 
     if [[ "$#" -lt 1 ]]; then
@@ -321,45 +322,136 @@ restore_files(){
             #Split metadata into array
             IFS=',' read -ra arr <<< "$(grep "^$var," "$METADATA_FILE")"
 
-            #check if file is already there
+            #Caso ja exista
             if [[ -e "${arr[2]}" ]];then
 
-                # Confirmar com o utilizador
-                echo "WARNING: File already Exists"
-                echo "Do you wish to Override (O), Restore with modified name (M), or Cancel (c) "
+                echo "WARNING: There is a ${arr[5]} by the same name (${arr[1]}) in the target location already"
+                echo "Do you wish to Override (O), Restore with Modified Name (M), or Cancel (q) "
                 read -r confirmation
 
                 case "$confirmation" in
                     O)
-                        mv $RECYCLE_BIN_DIR/files/$var "${arr[2]}"
-                        chmod ${arr[6]} "${arr[2]}"
+                        #Fix for placing directories inside directories instead of replacing
+                        [[ -d "${arr[2]}" ]] && mv "${arr[2]}" "${arr[2]}_old"
+
+                        mv "$RECYCLE_BIN_DIR/files/${arr[0]}" "${arr[2]}"
+
+                        [[ -d "${arr[2]}_old" ]] && rm -rf "${arr[2]}_old"
+                        
+                        grep -v "^${arr[0]}," "$METADATA_FILE" > "$METADATA_FILE.tmp"
+                        mv "$METADATA_FILE.tmp" "$METADATA_FILE"
+                        chmod "${arr[6]}" "${arr[2]}" 
+
+                        echo "Sucessfully Overwrote \"${arr[1]}\""
+                        log "Sucessfully Overwrote \"${arr[2]}\" with \"${arr[0]}\""
+                        continue
                         ;;
                     M)
+                        local timestamp=$(date +%s)
+                        mv "$RECYCLE_BIN_DIR/files/${arr[0]}" "${arr[2]}_$timestamp"
+                        grep -v "^${arr[0]}," "$METADATA_FILE" > "$METADATA_FILE.tmp"
+                        mv "$METADATA_FILE.tmp" "$METADATA_FILE"
+                        chmod "${arr[6]}" "${arr[2]}_$timestamp" 
 
+                        echo "Sucessfully restored \"${arr[1]}\" with name \"${arr[1]}_$timestamp\""
+                        log "Sucessfully restored \"${arr[0]}\" at \"${arr[2]}_$timestamp\""
+                        continue
                         ;;
                     *)
-                        echo "Operation cancelled"
-                        return 0
+                        echo "Restore operation for \"${arr[1]}\" was canceled"
+                        log "Restore operation for \"${arr[0]}\" was canceled"
+                        continue
                         ;;
+
                 esac
-
-            else
-                mkdir -p "${arr[2]}"
-                mv "$RECYCLE_BIN_DIR/files/$var" "${arr[2]}"
-                chmod ${arr[6]} "${arr[2]}"
-
             fi
 
-                grep -v "^$var," "$METADATA_FILE" > "$METADATA_FILE.tmp"
-                mv "$METADATA_FILE.tmp" "$METADATA_FILE"  
+            #Caso não exista
+            
+            #Criar any parent dirs necessarios to avoid errors
+            mkdir -p "$(dirname "${arr[2]}")"
+            
+            mv "$RECYCLE_BIN_DIR/files/${arr[0]}" "${arr[2]}"
+            grep -v "^${arr[0]}," "$METADATA_FILE" > "$METADATA_FILE.tmp"
+            mv "$METADATA_FILE.tmp" "$METADATA_FILE"
+            chmod "${arr[6]}" "${arr[2]}"
 
-                echo "File ID $var was restored sucessfully to ${arr[2]}"
-                log "$var restored to ${arr[2]}"
+            echo "\"${arr[1]}\" restored sucessfully"
+            log "\"${arr[0]}\" restored sucessfully"
+            return 0
+        else #Mode Filename
+
+            # Verificar se o Filename existe no metadata
+            if ! grep -q "^[0-9]\{10\}_[a-zA-Z0-9]\{6\},$var," "$METADATA_FILE"; then
+                echo "Error: Filename '$var' not found in recycle bin"
+                log "Failed to delete item with Filename '$var' - Filename not found"
+                return 1
+            fi
+            
+            #Split metadata into array
+            IFS=',' read -ra arr <<< "$(grep "^[0-9]\{10\}_[a-zA-Z0-9]\{6\},$var," "$METADATA_FILE")"
+
+            #Caso ja exista
+            if [[ -e "${arr[2]}" ]];then
+
+                echo "WARNING: There is a ${arr[5]} by the same name (${arr[1]}) in the target location already"
+                echo "Do you wish to Override (O), Restore with Modified Name (M), or Cancel (q) "
+                read -r confirmation
+
+                case "$confirmation" in
+                    O)
+                        #Fix for placing directories inside directories instead of replacing
+                        [[ -d "${arr[2]}" ]] && mv "${arr[2]}" "${arr[2]}_old"
+
+                        mv "$RECYCLE_BIN_DIR/files/${arr[0]}" "${arr[2]}"
+
+                        [[ -d "${arr[2]}_old" ]] && rm -rf "${arr[2]}_old"
+
+                        grep -v "^${arr[0]}," "$METADATA_FILE" > "$METADATA_FILE.tmp"
+                        mv "$METADATA_FILE.tmp" "$METADATA_FILE"
+                        chmod "${arr[6]}" "${arr[2]}" 
+
+                        echo "Sucessfully Overwrote \"${arr[1]}\""
+                        log "Sucessfully Overwrote \"${arr[2]}\" with \"${arr[0]}\""
+                        continue
+                        ;;
+                    M)
+                        local timestamp=$(date +%s)
+                        mv "$RECYCLE_BIN_DIR/files/${arr[0]}" "${arr[2]}_$timestamp"
+                        grep -v "^${arr[0]}," "$METADATA_FILE" > "$METADATA_FILE.tmp"
+                        mv "$METADATA_FILE.tmp" "$METADATA_FILE"
+                        chmod "${arr[6]}" "${arr[2]}_$timestamp" 
+
+                        echo "Sucessfully restored \"${arr[1]}\" with name \"${arr[1]}_$timestamp\""
+                        log "Sucessfully restored \"${arr[0]}\" at \"${arr[2]}_$timestamp\""
+                        continue
+                        ;;
+                    *)
+                        echo "Restore operation for \"${arr[1]}\" was canceled"
+                        log "Restore operation for \"${arr[0]}\" was canceled"
+                        continue
+                        ;;
+
+                esac
+            fi
+
+            #Caso não exista
+            
+            #Criar any parent dirs necessarios to avoid errors
+            mkdir -p "$(dirname "${arr[2]}")"
+            
+            mv "$RECYCLE_BIN_DIR/files/${arr[0]}" "${arr[2]}"
+            grep -v "^${arr[0]}," "$METADATA_FILE" > "$METADATA_FILE.tmp"
+            mv "$METADATA_FILE.tmp" "$METADATA_FILE"
+            chmod "${arr[6]}" "${arr[2]}"
+
+            echo "\"${arr[1]}\" restored sucessfully"
+            log "\"${arr[0]}\" restored sucessfully"
+            return 0
 
         fi
 
     done
-    return 0
 
 }
 
@@ -393,7 +485,7 @@ main(){
         empty_recyclebin "$@"
         ;;
 
-        restore_files | 4)
+        restore_file | 4)
         restore_files "$@"
         ;;
 
