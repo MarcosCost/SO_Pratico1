@@ -105,8 +105,9 @@ get_metadata(){
 # Description: Move files/directories to recycle bin
 # Parameters: At least 1 (file/directory paths)
 # Returns: 0 on success
-#################################################               
+#################################################               TODO: no read write permissions, Insufficient disk space
 delete_file(){
+
     #ficheiros protegidos (não podem ser apagados)
     local protected_files=(
         "recycle_bin.sh" "README.md" "TECHNICAL_DOC.md"
@@ -125,14 +126,14 @@ delete_file(){
             continue
         fi
         local abs_path=$(realpath "$var" 2>/dev/null)
-        # Proteção contra auto-deleção do recycle bin
+        #Não deletar a recycle bin itself
         if [[ "$abs_path" == "$(realpath "$RECYCLE_BIN_DIR" 2>/dev/null)"* ]] ||
            [[ "$abs_path" == "$HOME/.recycle_bin"* ]]; then
             echo "Cannot delete recycle bin itself or its contents"
             log "Attempted to delete recycle bin: $abs_path"
             continue
         fi
-        # Verificar ficheiros protegidos
+        #Não deletar ficheiros protegidos
         local is_protected=0
         for protected in "${protected_files[@]}"; do
             if [[ "$(basename "$var")" == "$protected" ]] ||
@@ -147,16 +148,20 @@ delete_file(){
             continue
         fi
 
+
+
         if [[ -f $var ]];then
+            
             local current_id=$(generate_unique_id)
             echo "$current_id,$(get_metadata $var)" >> $METADATA_FILE
             mv "$var" "$RECYCLE_BIN_DIR/files/$current_id"
             echo "$(realpath "$var") was deleted"
             log "$(realpath "$var") Was deleted; ID:$current_id"
+
         elif [[ -d $var ]];then
 
-            for recursive_var in "$var/*";do
-                [[ -e "$recursive_var" ]] || break
+            for recursive_var in "$var"/*; do
+                [[ -e "$recursive_var" ]] || continue
                 delete_file "$recursive_var"
             done
 
@@ -165,9 +170,22 @@ delete_file(){
             mv "$var" "$RECYCLE_BIN_DIR/files/$current_id"
             echo "$(realpath "$var") was deleted"
             log "$(realpath "$var") Was deleted; ID:$current_id"
+
         fi
 
     done
+    return 0
+}
+
+#################################################
+# Function: bytes_to_mb
+# Description: returns the value in B, KB, MB, GB
+# Parameters: 1
+# Returns: 0 on success
+#################################################
+bytes_to_mb() {
+    local result=$(numfmt --to=si --suffix=B "$1")    
+    echo "$result"
     return 0
 }
 
@@ -176,7 +194,7 @@ delete_file(){
 # Description: List all items in recycle bin
 # Parameters: 0 or 1 (--detailed flag)
 # Returns: 0 on success
-#################################################               TODO: File size readable format, empty filebin, better detailed, truncated Id for display
+#################################################
 list_recycled(){
 
     echo
@@ -192,10 +210,41 @@ list_recycled(){
         echo $total
     )
 
+    if [[ "$total_item" -eq 0 ]];then
+        printf "Recycle Bin is Currently Empty\n\n"
+        return 0
+    fi
+
     if [ "$#" -eq 0 ]; then
-        awk -F',' '{print "| " $1 , "+| "$2 , "+| " $4 , "+| " $5 , "+|"}' $METADATA_FILE | column -t -s+
+        
+        local result="|ID+|ORIGINAL_NAME+|DELETION_DATE+|FILE_SIZE+|\n"        
+        {
+        read
+        while read -r line;do
+
+            IFS="," read -ra arr <<< $line
+            result+="|${arr[0]}+|${arr[1]}+|${arr[3]}+|$(bytes_to_mb ${arr[4]})+|\n"
+
+        done 
+        }< "$METADATA_FILE"
+
+        printf "$result" | column -t -s+
+
     elif [ "$#" -eq 1 ] && [ "$1" == "--detailed" ]; then
-        awk -F, '{print "| " $1 , "+| " $2 , "+| " $3 , "+| " $4 , "+| " $5 , "+| " $6 , "+| " $7 , "+| " $8 , "+|"}' $METADATA_FILE | column -t -s+
+        
+        local result="|ID+|ORIGINAL_NAME+|ORIGINAL_PATH+|DELETION_DATE+|FILE_SIZE+|FILE_TYPE+|PERMISSION+|OWNER+|\n"        
+        {
+        read
+        while read -r line;do
+
+            IFS="," read -ra arr <<< $line
+            result+="|${arr[0]}+|${arr[1]}+|${arr[2]}+|${arr[3]}+|$(bytes_to_mb ${arr[4]})+|${arr[5]}+|${arr[6]}+|${arr[7]}+|\n"
+
+        done 
+        }< "$METADATA_FILE"
+
+        printf "$result" | column -t -s+  | cut -c1-$(tput cols)
+
     elif [ "$#" -eq 1 ] && [ "$1" != "--detailed" ]; then
         echo "\"$1\" is not recognized as a flag"
     else
@@ -203,10 +252,11 @@ list_recycled(){
     fi
 
     printf "\nTotal files: $total_item\n"
-    printf "Total files: $total_storage\n"
+    printf "Total size: $(bytes_to_mb $total_storage) \n"
 
     echo
 
+    return 0
 
 }
 
@@ -215,7 +265,7 @@ list_recycled(){
 # Description: Empty recycle bin (all items or specific ID)
 # Parameters: 0,1 or 2 (--force, specific ID)
 # Returns: 0 on success
-################################################# 
+#################################################              TODO: Display summary of deleted items
 empty_recyclebin(){
     # Verificar se há itens na recycle bin
     if [ ! -s "$METADATA_FILE" ] || [ $(wc -l < "$METADATA_FILE") -le 1 ]; then
@@ -242,7 +292,7 @@ empty_recyclebin(){
     fi
 
     # Modo: Empty all
-    if [[ -z "$target_id" ]]; then
+    if [[ "$target_id" == "" ]]; then
         
         if [[ $force == 1 ]];then
             confirmation="yes"
@@ -283,7 +333,7 @@ empty_recyclebin(){
         if [[ $force == 1 ]];then
             confirmation="yes"
         else
-            echo "WARNING: This will permanently delete ALL items from recycle bin"
+            echo "WARNING: This will permanently delete item by id $target_id from recycle bin"
             echo "Are you sure? This cannot be undone (y/n): "
             read -r confirmation
         fi
@@ -552,7 +602,7 @@ search_recycled(){
 }
 
 #################################################
-# Function: dispay_help
+# Function: display_help
 # Description: Displays help
 # Parameters: 1 
 # Returns: 0 on success
@@ -571,7 +621,135 @@ display_help(){
     return 0
 }
 
+#################################################
+# Function: show_statistics
+# Description: displays statistics
+# Parameters: 0
+# Returns: 0 on success
+#################################################
+show_statistics(){
 
+    local total_storage=$(
+        local total=0
+        while IFS= read -r line; do
+
+            IFS=',' read -ra fields <<< "$line"
+            total=$((total + ${fields[4]}))
+
+        done < <(tail -n +2 "$METADATA_FILE")
+        echo $total
+    )
+
+    local file_storage=$(
+        local total=0
+        while IFS= read -r line; do
+
+            IFS=',' read -ra fields <<< "$line"
+            if [[ "${fields[5]}" == "file" ]]; then
+                total=$((total + ${fields[4]}))
+            fi
+        done < <(tail -n +2 "$METADATA_FILE")
+        echo $total
+    )
+
+    local dir_storage=$(
+        local total=0
+        while IFS= read -r line; do
+
+            IFS=',' read -ra fields <<< "$line"
+            if [[ "${fields[5]}" == "directory" ]]; then
+                total=$((total + ${fields[4]}))
+            fi
+        done < <(tail -n +2 "$METADATA_FILE")
+        echo $total
+    )
+
+    local total_count=$(ls "$RECYCLE_BIN_DIR/files" -1 -p | wc -l)
+    local file_count=$(ls "$RECYCLE_BIN_DIR/files" -1 -p | grep -v / | wc -l)
+    local dir_count=$(ls "$RECYCLE_BIN_DIR/files" -1 -p | grep  / | wc -l)
+
+    local quota_bytes=$(( $(head -n 1 "$RECYCLE_BIN_DIR/config" | cut -d '=' -f2) * 1000000 ))
+
+    local result="| +|Total+|Files+|Dir+|\n"
+
+    result+="|Number of:+|$total_count+|$file_count+|$dir_count+|\n"
+    result+="|Storage used:+|$(bytes_to_mb $total_storage)+|$(bytes_to_mb $file_storage)+|$(bytes_to_mb $dir_storage)+|\n"
+    result+="|Quota+|%.10f%% +|%.10f%% +|%.10f%% +|\n"
+    result+="|Average size+|$(bytes_to_mb $(echo "$total_storage/$total_count" | bc)) +|$(bytes_to_mb $(echo "$file_storage/$file_count" | bc)) +|$(bytes_to_mb $(echo "$dir_storage/$dir_count" | bc)) +|\n"
+
+    printf "$result" "$(echo "scale=10; $total_storage*100/$quota_bytes" | bc)" "$(echo "scale=10; $file_storage*100/$quota_bytes" | bc)" "$(echo "scale=10; $dir_storage*100/$quota_bytes" | bc)" | column -t -s+
+    echo ""
+    echo "Newest entry: $(tail -n 1 "$METADATA_FILE" | cut -d ',' -f2 )"
+    echo "Newest entry: $(head -n 2 "$METADATA_FILE" | tail -n 1 | cut -d ',' -f2 )"
+    return 0
+}
+
+#################################################
+# Function: auto_cleanup
+# Description: apagar automaticamente files cuja deletion date seja ha mais de RETENCION_DAYS dias
+# Parameters: 0
+# Returns: 0 on success
+#################################################
+auto_cleanup(){
+
+    local curr_date=0
+    local delete_date=0
+    local retention_days=$(head -n 2 "$RECYCLE_BIN_DIR/config" | tail -n 1 | cut -d '=' -f2)
+
+    {
+    read
+    while read -ra line; do
+        
+        IFS=- read -r f1 f2 f3 <<< "$(date +%Y-%m-%d)" 
+        curr_date=$(( f1*365 + f2*30 + f3 ))
+        
+        IFS=- read -r f1 f2 f3 <<< "$(cut -d ',' -f4 <<< "$line")"
+        delete_date=$(( f1*365 + f2*30 + f3 ))
+
+        local id=$(cut -d ',' -f1 <<< "$line" )
+
+        if [[ $(( $curr_date - $delete_date )) -ge $retention_days ]];then
+            empty_recyclebin --force "$id"
+        fi
+
+    done 
+    }< "$METADATA_FILE"
+
+    echo "All items older than $retention_days deleted"
+
+}
+
+
+#################################################
+# Function: check_quotaa
+# Description: Vẽ se o tamanho da bin excede o tamanho defenido nsa configs, caso positivo automaticamente corre auto cleanup
+# Parameters: 0
+# Returns: 0 on success
+#################################################
+check_quota(){
+
+    local total_storage=$(
+        local total=0
+        while IFS= read -r line; do
+
+            IFS=',' read -ra fields <<< "$line"
+            total=$((total + ${fields[4]}))
+
+        done < <(tail -n +2 "$METADATA_FILE")
+        echo $total
+    )
+
+    local quota_bytes=$(($(head -n 1 "$RECYCLE_BIN_DIR/config" | cut -d '=' -f2)*1000000))
+    
+    local percentage=$(echo "scale=10; $total_storage*100/$quota_bytes" | bc)
+    echo "Quota used: $percentage%"
+
+    if [[ ${percentage%.*} -ge 100 ]];then
+        echo "Quota execeded running auto cleanup"
+        auto_cleanup
+    fi
+    return 0
+}
 
 #################################################
 # Function: main
@@ -612,6 +790,18 @@ main(){
 
         display_help | help | -h | --help)
         display_help "$@"
+        ;;
+
+        show_statistics | -S )
+        show_statistics
+        ;;
+
+        auto_cleanup | -A )
+        auto_cleanup
+        ;;
+
+        check_quota | -Q )
+        check_quota
         ;;
 
         *)
