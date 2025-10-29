@@ -105,7 +105,7 @@ get_metadata(){
 # Description: Move files/directories to recycle bin
 # Parameters: At least 1 (file/directory paths)
 # Returns: 0 on success
-#################################################
+#################################################               
 delete_file(){
     #ficheiros protegidos (não podem ser apagados)
     local protected_files=(
@@ -215,7 +215,7 @@ list_recycled(){
 # Description: Empty recycle bin (all items or specific ID)
 # Parameters: 0 or 1 (specific ID)
 # Returns: 0 on success
-#################################################
+#################################################                               TODO: force flag
 empty_recyclebin(){
     # Verificar se há itens na recycle bin
     if [ ! -s "$METADATA_FILE" ] || [ $(wc -l < "$METADATA_FILE") -le 1 ]; then
@@ -455,6 +455,71 @@ restore_files(){
 
 }
 
+#################################################
+# Function: search_recycled
+# Description: Restore files by id
+# Parameters: Min 1 Max 2 ( -c and pattern)
+# Returns: 0 on success
+################################################# 
+search_recycled(){
+
+    #validate arguments
+    if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
+        echo "Error: Expected 1 or 2 arguments, but got $#"
+        echo "Usage: search_recycled [-c] <argument>"
+        return 1
+    fi
+    if [ "$#" -eq 2 ] && [ "$1" != "-c" ]; then
+        echo "$1 isn't an acceptable flag"
+        echo "Usage: search_recycled [-c] <argument>"
+        return 1
+    fi
+
+    #Case sensitive
+    if [[ "$1" = "-c" ]];then
+        local arg="$2"
+        printf "\nSearch Results:\n\n│%-17s│%-25s│%-60s│\n" "ID" "NAME" "PATH"
+        {
+        read
+        while read -r line;do
+            
+            IFS="," read -ra arr <<< "$line" 
+            local comparables=("${arr[1]}" "${arr[2]}")
+            for compare in "${comparables[@]}"; do
+                
+                #Reference 1
+                if [[ "${compare,,}" =~ ${arg,,} ]] || [[ "${compare,,}" == ${arg,,} ]] ; then
+                    printf "│%-17s│%-25s│%-60s│\n" "${arr[0]}" "${arr[1]}" "${arr[2]}"
+                    break
+                fi
+            
+            done
+
+        done } < "$METADATA_FILE"
+        return 0
+    fi
+
+    #Case sensitive
+    local arg="$1"
+    printf "\nSearch Results:\n\n│%-17s│%-25s│%-60s│\n" "ID" "NAME" "PATH"
+    {
+    read
+    while read -r line;do
+        
+        IFS="," read -ra arr <<< "$line" 
+        local comparables=("${arr[1]}" "${arr[2]}")
+        for compare in "${comparables[@]}"; do
+            
+            if [[ "$compare" =~ $arg ]] || [[ "$compare" = "$arg" ]]; then
+                printf "│%-17s│%-25s│%-60s│\n" "${arr[0]}" "${arr[1]}" "${arr[2]}"
+                break
+            fi
+        
+        done
+
+    done }< "$METADATA_FILE"
+    return 0
+}
 
 #################################################
 # Function: main
@@ -487,6 +552,10 @@ main(){
 
         restore_file | 4)
         restore_files "$@"
+        ;;
+
+        search_recycled | 5)
+        search_recycled "$@"
         ;;
 
         *)
