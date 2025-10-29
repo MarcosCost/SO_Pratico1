@@ -460,7 +460,7 @@ restore_files(){
 # Description: Restore files by id
 # Parameters: Min 1 Max 2 ( -c and pattern)
 # Returns: 0 on success
-################################################# 
+#################################################           TODO:Message if no match found
 search_recycled(){
 
     #validate arguments
@@ -475,10 +475,13 @@ search_recycled(){
         return 1
     fi
 
+    local results=""
+    local found=0
+
     #Case sensitive
     if [[ "$1" = "-c" ]];then
         local arg="$2"
-        printf "\nSearch Results:\n\n│%-17s│%-25s│%-60s│\n" "ID" "NAME" "PATH"
+        results+=$(printf "\nSearch Results:\n\n│%-17s│%-25s│%-60s│\n" "ID" "NAME" "PATH")
         {
         read
         while read -r line;do
@@ -489,7 +492,8 @@ search_recycled(){
                 
                 #Reference 1
                 if [[ "${compare,,}" =~ ${arg,,} ]] || [[ "${compare,,}" == ${arg,,} ]] ; then
-                    printf "│%-17s│%-25s│%-60s│\n" "${arr[0]}" "${arr[1]}" "${arr[2]}"
+                    results+=$(printf "│%-17s│%-25s│%-60s│\n" "${arr[0]}" "${arr[1]}" "${arr[2]}")
+                    found=1
                     break
                 fi
             
@@ -501,7 +505,7 @@ search_recycled(){
 
     #Case sensitive
     local arg="$1"
-    printf "\nSearch Results:\n\n│%-17s│%-25s│%-60s│\n" "ID" "NAME" "PATH"
+    results+=$(printf "\nSearch Results:\n\n│%-17s│%-25s│%-60s│\n" "ID" "NAME" "PATH")
     {
     read
     while read -r line;do
@@ -511,13 +515,21 @@ search_recycled(){
         for compare in "${comparables[@]}"; do
             
             if [[ "$compare" =~ $arg ]] || [[ "$compare" = "$arg" ]]; then
-                printf "│%-17s│%-25s│%-60s│\n" "${arr[0]}" "${arr[1]}" "${arr[2]}"
+                results+=$(printf "\n│%-17s│%-25s│%-60s│\n" "${arr[0]}" "${arr[1]}" "${arr[2]}")
+                found=1
                 break
             fi
         
         done
 
     done }< "$METADATA_FILE"
+    
+    if [ $found -eq 0 ]; then
+        echo "No matches found for '$arg'"
+    else
+        echo "$results"
+    fi
+
     return 0
 }
 
