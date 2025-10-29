@@ -224,11 +224,33 @@ empty_recyclebin(){
         return 0
     fi
 
+    local force=0
+    local target_id=""
+
+    # Parse arguments
+    if [ $# -eq 1 ] && [[ "$1" == "--force" ]]; then
+        force=1
+    elif [ $# -eq 1 ] && [[ "$1" != "--force" ]]; then
+        target_id="$1"
+    elif [ $# -eq 2 ] && [[ "$1" == "--force" ]]; then
+        force=1
+        target_id="$2"
+    elif [ $# -gt 0 ]; then
+        echo "Error: Invalid arguments"
+        echo "Usage: empty_recyclebin [--force] [ID]"
+        return 1
+    fi
+
     # Modo: Empty all
-    if [ $# -eq 0 ]; then
-        echo "WARNING: This will permanently delete ALL items from recycle bin"
-        echo "Are you sure? This cannot be undone (y/n): "
-        read -r confirmation
+    if [ $# -eq 0 ] || [[ "$1" == "--force" ]] ; then
+        
+        if [[ $force == 1 ]];then
+            confirmation="yes"
+        else
+            echo "WARNING: This will permanently delete ALL items from recycle bin"
+            echo "Are you sure? This cannot be undone (y/n): "
+            read -r confirmation
+        fi
 
         case "$confirmation" in
             y|Y|yes|YES)
@@ -250,8 +272,7 @@ empty_recyclebin(){
         esac
 
     # Modo: Empty específico por ID
-    elif [ $# -eq 1 ]; then
-        local target_id="$1"
+    elif [ $# -eq 1 ] || ; then
 
         # Verificar se o ID existe no metadata
         if ! grep -q "^$target_id," "$METADATA_FILE"; then
@@ -260,10 +281,13 @@ empty_recyclebin(){
             return 1
         fi
 
-        # Confirmar com o utilizador
-        echo "WARNING: This will permanently delete item with ID: $target_id"
-        echo "Are you sure? This cannot be undone (y/n): "
-        read -r confirmation
+        if [[ $force == 1 ]];then
+            confirmation="yes"
+        else
+            echo "WARNING: This will permanently delete ALL items from recycle bin"
+            echo "Are you sure? This cannot be undone (y/n): "
+            read -r confirmation
+        fi
 
         case "$confirmation" in
             y|Y|yes|YES)
@@ -460,7 +484,7 @@ restore_files(){
 # Description: Restore files by id
 # Parameters: Min 1 Max 2 ( -c and pattern)
 # Returns: 0 on success
-#################################################           TODO:Message if no match found
+#################################################
 search_recycled(){
 
     #validate arguments
@@ -534,6 +558,21 @@ search_recycled(){
 }
 
 #################################################
+# Function: dispay_help
+# Description: Displays help
+# Parameters: 1 
+# Returns: 0 on success
+#################################################
+dispay_help(){
+
+    printf "\ninitialize_recyclebin, -i         ./recycle_bin.sh -i\nCreates the folder and all components of the recycle bin, If folder exists but some components are missing re-creates them\n"
+    printf "\ndelete_file, -d                   ./recycle_bin.sh -d [FILES]\nDeletes all files and directories specified in the arguments saving them to the recycle bin\n"
+    printf "\nlist_recycled, -l                 ./recycle_bin.sh -l [FLAG]\n Prints a list of all files in the bin.\nTakes one flag '--detailed' for a more detailed list\n"
+    printf "\nempty_recyclebin, -e              ./recycle_bin.sh -e"
+    return 0
+}
+
+#################################################
 # Function: main
 # Description: Main function that routes to appropriate functions
 # Parameters: multiple (command line arguments)
@@ -546,28 +585,32 @@ main(){
 
     case $first_arg in
     
-        initialize_recyclebin | 0)
+        initialize_recyclebin | -i)
         initialize_recyclebin
         ;;
 
-        delete_file | 1)
+        delete_file | -d)
         delete_file "$@"
         ;;
 
-        list_recycled | 2)
+        list_recycled | -l)
         list_recycled "$@"
         ;;
 
-        empty_recyclebin | 3)
+        empty_recyclebin | -e)
         empty_recyclebin "$@"
         ;;
 
-        restore_file | 4)
+        restore_file | -r)
         restore_files "$@"
         ;;
 
-        search_recycled | 5)
+        search_recycled | -s)
         search_recycled "$@"
+        ;;
+
+        display_help | help | -h | --help)
+        display_help "$@"
         ;;
 
         *)
