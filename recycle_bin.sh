@@ -213,9 +213,9 @@ list_recycled(){
 #################################################
 # Function: empty_recyclebin
 # Description: Empty recycle bin (all items or specific ID)
-# Parameters: 0 or 1 (specific ID)
+# Parameters: 0,1 or 2 (--force, specific ID)
 # Returns: 0 on success
-#################################################                               TODO: force flag
+################################################# 
 empty_recyclebin(){
     # Verificar se há itens na recycle bin
     if [ ! -s "$METADATA_FILE" ] || [ $(wc -l < "$METADATA_FILE") -le 1 ]; then
@@ -242,7 +242,7 @@ empty_recyclebin(){
     fi
 
     # Modo: Empty all
-    if [ $# -eq 0 ] || [[ "$1" == "--force" ]] ; then
+    if [[ -z "$target_id" ]]; then
         
         if [[ $force == 1 ]];then
             confirmation="yes"
@@ -272,8 +272,7 @@ empty_recyclebin(){
         esac
 
     # Modo: Empty específico por ID
-    elif [ $# -eq 1 ] || ; then
-
+    else
         # Verificar se o ID existe no metadata
         if ! grep -q "^$target_id," "$METADATA_FILE"; then
             echo "Error: ID '$target_id' not found in recycle bin"
@@ -308,11 +307,6 @@ empty_recyclebin(){
                 ;;
         esac
 
-    else
-        echo "Error: empty_recyclebin takes 0 or 1 arguments"
-        echo "Usage: empty_recyclebin [ID]"
-        log "ERROR: empty_recyclebin called with incorrect number of arguments: $#"
-        return 1
     fi
 
     return 0
@@ -502,7 +496,7 @@ search_recycled(){
     local results=""
     local found=0
 
-    #Case sensitive
+    #Case insensitive
     if [[ "$1" = "-c" ]];then
         local arg="$2"
         results+=$(printf "\nSearch Results:\n\n│%-17s│%-25s│%-60s│\n" "ID" "NAME" "PATH")
@@ -563,14 +557,21 @@ search_recycled(){
 # Parameters: 1 
 # Returns: 0 on success
 #################################################
-dispay_help(){
+display_help(){
+    printf "\n Config file located at $RECYCLE_BIN_DIR/config can be used for setting MAX_SIZE_MB and RETENTION_DAYS\n"
 
-    printf "\ninitialize_recyclebin, -i         ./recycle_bin.sh -i\nCreates the folder and all components of the recycle bin, If folder exists but some components are missing re-creates them\n"
-    printf "\ndelete_file, -d                   ./recycle_bin.sh -d [FILES]\nDeletes all files and directories specified in the arguments saving them to the recycle bin\n"
-    printf "\nlist_recycled, -l                 ./recycle_bin.sh -l [FLAG]\n Prints a list of all files in the bin.\nTakes one flag '--detailed' for a more detailed list\n"
-    printf "\nempty_recyclebin, -e              ./recycle_bin.sh -e"
+    printf "\n\tinitialize_recyclebin, -i         ./recycle_bin.sh -i\n\t\tCreates the folder and all components of the recycle bin, If folder exists but some components are missing re-creates them\n"
+    printf "\n\tdelete_file, -d                   ./recycle_bin.sh -d [FILES]\n\t\tDeletes all files or directories (and their contents) specified in the arguments saving them to the recycle bin.\n"
+    printf "\n\tlist_recycled, -l                 ./recycle_bin.sh -l [FLAG]\n\t\tPrints a list of all files in the bin.\n\t\tTakes one flag '--detailed' for a more detailed list\n"
+    printf "\n\tempty_recyclebin, -e              ./recycle_bin.sh -e [FLAG] [FILE_ID]\n\t\tIf an Id is provided, searches for ID in the recycle bin and permanently deletes it, if no Id it provided empties recycle bin of all contents.\n\t\tTakes one flag '--force' to skip user confirmation.\n"
+    printf "\n\trestore_file, -r                  ./recycle_bin.sh -r [FILES_OR_IDS]\n\t\tRestores all files or directoried specified in the arguments if they exist in the recycle bin\n"
+    printf "\n\tsearch_recycled, -s               ./recycle_bin.sh -s [FLAG] [Pattern]\n\t\tSearches the Recyclebin for any file whose name or path mathes the pattern argument.\n\t\tTakes one flag '-c' to make a Case insensitive search\n"
+    
+    echo
     return 0
 }
+
+
 
 #################################################
 # Function: main
