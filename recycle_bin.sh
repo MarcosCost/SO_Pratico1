@@ -3,7 +3,7 @@
 
 #################################################
 # Linux Recycle Bin Simulation
-# Author: Your Name
+# Author: Marcos Costa (125882), José Mendes (114429)
 # Date: YYYY-MM-DD
 # Description: Shell-based recycle bin system
 # Version: 1.0

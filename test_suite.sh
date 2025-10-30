@@ -1,6 +1,6 @@
 #!/bin/bash
 # Automated Test Suite for Recycle Bin System
-# Author: Marcos Costa 125882
+# Author: Marcos Costa (125882), José Mendes (114429)
 
 SCRIPT="./recycle_bin.sh"
 TEST_DIR="test_data"
