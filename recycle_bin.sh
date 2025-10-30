@@ -10,7 +10,7 @@
 #################################################
 
 # Global Variables (ALL CAPS)
-RECYCLE_BIN_DIR="$HOME/recycle_bin"
+RECYCLE_BIN_DIR="$HOME/.recycle_bin"
 METADATA_FILE="$RECYCLE_BIN_DIR/metadata.db"
 
 
@@ -153,7 +153,7 @@ delete_file(){
         if [[ -f $var ]];then
             
             local current_id=$(generate_unique_id)
-            echo "$current_id,$(get_metadata $var)" >> $METADATA_FILE
+            echo "$current_id,$(get_metadata "$var")" >> $METADATA_FILE
             mv "$var" "$RECYCLE_BIN_DIR/files/$current_id"
             echo "$(realpath "$var") was deleted"
             log "$(realpath "$var") Was deleted; ID:$current_id"
@@ -166,7 +166,7 @@ delete_file(){
             done
 
             local current_id=$(generate_unique_id)
-            echo "$current_id,$(get_metadata $var)" >> $METADATA_FILE
+            echo "$current_id,$(get_metadata "$var")" >> $METADATA_FILE
             mv "$var" "$RECYCLE_BIN_DIR/files/$current_id"
             echo "$(realpath "$var") was deleted"
             log "$(realpath "$var") Was deleted; ID:$current_id"
@@ -365,7 +365,7 @@ empty_recyclebin(){
 #################################################
 # Function: restore_files
 # Description: Restore files by id
-# Parameters: At least 1 (ID)
+# Parameters: At least 1 (ID or Filename)
 # Returns: 0 on success
 #################################################           TODO:Permission denied at destination;   Disk space issues
 restore_files(){
@@ -752,6 +752,29 @@ check_quota(){
 }
 
 #################################################
+# Function: preview_file
+# Description: preview the file
+# Parameters: 1
+# Returns: 0 on success
+#################################################
+preview_file(){
+
+    if [[ ! $1 =~ ^[0-9]{10}_[a-zA-Z0-9]{6}$ ]] || [[ "$#" -ne 1 ]]; then
+        echo "preview_file only takes one ID as argument"
+        log "ERROR: preview_files took invalid parameters"
+        return 1
+    fi
+
+    if [[ "$(file "$RECYCLE_BIN_DIR/files/$1")" != "$RECYCLE_BIN_DIR/files/$1: ASCII text" ]];then
+        echo "$(file "$RECYCLE_BIN_DIR/files/$1")"
+    else
+        echo "$(head "$RECYCLE_BIN_DIR/files/$1")"
+    fi
+
+    return 0
+}
+
+#################################################
 # Function: main
 # Description: Main function that routes to appropriate functions
 # Parameters: multiple (command line arguments)
@@ -802,6 +825,10 @@ main(){
 
         check_quota | -Q )
         check_quota
+        ;;
+
+        preview_file | -P )
+        preview_file "$@"
         ;;
 
         *)
