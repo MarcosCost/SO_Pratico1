@@ -117,9 +117,9 @@ delete_file(){
     local any_failed=0
 
     #Para cada um dos argumentos fazer o seguinte
-    for varr in "$@"; do
-        
-        local var="$varr"
+    while [ $# -gt 0 ]; do
+        local var="$0"
+        shift
 
         #Skip invalid input
         if [ ! -e "$var" ]; then
@@ -139,8 +139,9 @@ delete_file(){
         fi
         #Não deletar ficheiros protegidos
         local is_protected=0
+        local base_name=$(basename "$var")
         for protected in "${protected_files[@]}"; do
-            if [[ "$(basename "$var")" == "$protected" ]] ||
+            if [[ "$base_name" == "$protected" ]] ||
                [[ "$abs_path" == "$(realpath "$protected" 2>/dev/null)" ]]; then
                 echo "Cannot delete Project Structure items"
                 log "Error: Cannot delete Project Structure items"
@@ -288,26 +289,43 @@ empty_recyclebin(){
     local target_id=""
 
     # Parse arguments
-    if [ $# -eq 1 ] && [[ "$1" == "--force" ]]; then
-        force=1
-    elif [ $# -eq 1 ] && [[ "$1" != "--force" ]]; then
-        target_id="$1"
-    elif [ $# -eq 2 ] && [[ "$1" == "--force" ]]; then
-        force=1
-        target_id="$2"
-    elif [ $# -gt 0 ]; then
-        echo "Error: Invalid arguments"
-        echo "Usage: empty_recyclebin [--force] [ID]"
-        return 1
-    fi
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --force)
+                force=1
+                shift
+                ;;
+            *)
+                if [[ -z "$target_id" ]] && [[ "$1" =~ ^[0-9]{10}_[a-zA-Z0-9]{6}$ ]]; then
+                    target_id="$1"
+                else
+                    echo "Error: Invalid argument '$1'"
+                    echo "Usage: empty_recyclebin [--force] [ID]"
+                    return 1
+                fi
+                shift
+                ;;
+        esac
+    done
 
     # Modo: Empty all
     if [[ -z "$target_id" ]]; then
+        # Contar itens para mostrar no summary
+        local total_items=$(( $(wc -l < "$METADATA_FILE") - 1 ))
+        local total_size=$(
+            local total=0
+            while IFS=',' read -r id name path date size type perms owner; do
+                total=$((total + size))
+            done < <(tail -n +2 "$METADATA_FILE")
+            echo $total
+        )
         
-        if [[ $force == 1 ]];then
+        if [[ $force == 1 ]]; then
             confirmation="yes"
         else
             echo "WARNING: This will permanently delete ALL items from recycle bin"
+            echo "Items to delete: $total_items"
+            echo "Total size: $(bytes_to_mb $total_size)"
             echo "Are you sure? This cannot be undone (y/n): "
             read -r confirmation
         fi
@@ -315,14 +333,15 @@ empty_recyclebin(){
         case "$confirmation" in
             y|Y|yes|YES)
                 # Apagar todos os ficheiros
-                rm -rf "$RECYCLE_BIN_DIR/files/"*
+                rm -rf "$RECYCLE_BIN_DIR/files/"* 2>/dev/null
 
                 # Reset do metadata file (mantém apenas o header)
                 head -n 1 "$METADATA_FILE" > "$METADATA_FILE.tmp"
                 mv "$METADATA_FILE.tmp" "$METADATA_FILE"
 
                 echo "Recycle bin emptied successfully"
-                log "Recycle bin emptied - all items permanently deleted"
+                echo "Permanently deleted: $total_items items ($(bytes_to_mb $total_size))"
+                log "Recycle bin emptied - $total_items items permanently deleted ($(bytes_to_mb $total_size))"
                 ;;
             *)
                 echo "Operation cancelled"
@@ -340,10 +359,18 @@ empty_recyclebin(){
             return 1
         fi
 
-        if [[ $force == 1 ]];then
+        # Obter informações do ficheiro para o summary
+        local file_info=$(grep "^$target_id," "$METADATA_FILE")
+        IFS=',' read -r id name path date size type perms owner <<< "$file_info"
+
+        if [[ $force == 1 ]]; then
             confirmation="yes"
         else
-            echo "WARNING: This will permanently delete item by id $target_id from recycle bin"
+            echo "WARNING: This will permanently delete item from recycle bin"
+            echo "File: $name"
+            echo "Original path: $path"
+            echo "Size: $(bytes_to_mb $size)"
+            echo "Deleted: $date"
             echo "Are you sure? This cannot be undone (y/n): "
             read -r confirmation
         fi
@@ -351,14 +378,17 @@ empty_recyclebin(){
         case "$confirmation" in
             y|Y|yes|YES)
                 # Apagar o ficheiro físico
-                rm -rf "$RECYCLE_BIN_DIR/files/$target_id"
+                if [[ -e "$RECYCLE_BIN_DIR/files/$target_id" ]]; then
+                    rm -rf "$RECYCLE_BIN_DIR/files/$target_id"
+                fi
 
                 # Remover do metadata
                 grep -v "^$target_id," "$METADATA_FILE" > "$METADATA_FILE.tmp"
                 mv "$METADATA_FILE.tmp" "$METADATA_FILE"
 
                 echo "Item with ID '$target_id' permanently deleted"
-                log "Item with ID '$target_id' permanently deleted from recycle bin"
+                echo "File: $name ($(bytes_to_mb $size))"
+                log "Item with ID '$target_id' permanently deleted from recycle bin - $name ($(bytes_to_mb $size))"
                 ;;
             *)
                 echo "Operation cancelled"
@@ -388,7 +418,9 @@ restore_files(){
 
     local any_failed=0
 
-    for var in "$@"; do
+    while [ $# -gt 0 ]; do
+        local var="$1"
+        shift
 
         #Modo ID
         if [[ $var =~ ^[0-9]{10}_[a-zA-Z0-9]{6}$ ]]; then
@@ -412,7 +444,7 @@ restore_files(){
                 read -r confirmation
 
                 case "$confirmation" in
-                    O)
+                    O|o)
                         #Fix for placing directories inside directories instead of replacing
                         [[ -d "${arr[2]}" ]] && mv "${arr[2]}" "${arr[2]}_old"
 
@@ -427,15 +459,15 @@ restore_files(){
                         echo "Sucessfully Overwrote \"${arr[1]}\""
                         log "Sucessfully Overwrote \"${arr[2]}\" with \"${arr[0]}\""
                         ;;
-                    M)
+                    M|m)
                         local timestamp=$(date +%s)
-                        mv "$RECYCLE_BIN_DIR/files/${arr[0]}" "${arr[2]}_$timestamp"
+                        local new_path="${arr[2]}_$timestamp"
+                        mv "$RECYCLE_BIN_DIR/files/${arr[0]}" "$new_path"
                         grep -v "^${arr[0]}," "$METADATA_FILE" > "$METADATA_FILE.tmp"
                         mv "$METADATA_FILE.tmp" "$METADATA_FILE"
-                        chmod "${arr[6]}" "${arr[2]}_$timestamp" 
-
-                        echo "Sucessfully restored \"${arr[1]}\" with name \"${arr[1]}_$timestamp\""
-                        log "Sucessfully restored \"${arr[0]}\" at \"${arr[2]}_$timestamp\""
+                        chmod "${arr[6]}" "$new_path"
+                        echo "Successfully restored \"${arr[1]}\" with name \"$(basename "$new_path")\""
+                        log "Successfully restored \"${arr[0]}\" at \"$new_path\""
                         ;;
                     *)
                         echo "Restore operation for \"${arr[1]}\" was canceled"
@@ -461,6 +493,9 @@ restore_files(){
             fi
 
         else #Mode Filename
+            # Buscar TODOS os matches exatos no campo ORIGINAL_NAME
+            local matches=$(grep ",$var," "$METADATA_FILE")
+            local match_count=$(echo "$matches" | wc -l)
 
             # Verificar se o Filename existe no metadata
             if ! grep -q ",$var," "$METADATA_FILE"; then
@@ -468,10 +503,15 @@ restore_files(){
                 log "Failed to restore item with Filename '$var' - Filename not found"
                 any_failed=1
                 continue
+            elif [[ $match_count -gt 1 ]]; then
+                echo "Multiple matches found for '$var'. Please use ID instead:"
+                echo "$matches" | cut -d',' -f1,2,3
+                any_failed=1
+                continue
             fi
             
             #Split metadata into array
-            IFS=',' read -ra arr <<< "$(grep ",$var," "$METADATA_FILE")"
+            IFS=',' read -ra arr <<< "$matches"
 
             #Caso ja exista
             if [[ -e "${arr[2]}" ]];then
@@ -481,7 +521,7 @@ restore_files(){
                 read -r confirmation
 
                 case "$confirmation" in
-                    O)
+                    O|o)
                         #Fix for placing directories inside directories instead of replacing
                         [[ -d "${arr[2]}" ]] && mv "${arr[2]}" "${arr[2]}_old"
 
@@ -496,15 +536,15 @@ restore_files(){
                         echo "Sucessfully Overwrote \"${arr[1]}\""
                         log "Sucessfully Overwrote \"${arr[2]}\" with \"${arr[0]}\""
                         ;;
-                    M)
+                    M|m)
                         local timestamp=$(date +%s)
-                        mv "$RECYCLE_BIN_DIR/files/${arr[0]}" "${arr[2]}_$timestamp"
+                        local new_path="${arr[2]}_$timestamp"
+                        mv "$RECYCLE_BIN_DIR/files/${arr[0]}" "$new_path"
                         grep -v "^${arr[0]}," "$METADATA_FILE" > "$METADATA_FILE.tmp"
                         mv "$METADATA_FILE.tmp" "$METADATA_FILE"
-                        chmod "${arr[6]}" "${arr[2]}_$timestamp" 
-
-                        echo "Sucessfully restored \"${arr[1]}\" with name \"${arr[1]}_$timestamp\""
-                        log "Sucessfully restored \"${arr[0]}\" at \"${arr[2]}_$timestamp\""
+                        chmod "${arr[6]}" "$new_path"
+                        echo "Successfully restored \"${arr[1]}\" with name \"$(basename "$new_path")\""
+                        log "Successfully restored \"${arr[0]}\" at \"$new_path\""
                         ;;
                     *)
                         echo "Restore operation for \"${arr[1]}\" was canceled"
@@ -810,64 +850,63 @@ preview_file(){
 # Returns: 0 on success
 #################################################
 main(){
+    # Verificar se há argumentos
+    if [ $# -eq 0 ]; then
+        display_help
+        return 0
+    fi
 
-    local first_arg=$1
+    local first_arg="$1"
     shift
 
     case $first_arg in
-    
-        initialize_recyclebin | -i)
-        initialize_recyclebin
-        ;;
-
-        delete_file | -d)
-        delete_file "$@"
-        exit $?
-        ;;
-
-        list_recycled | -l)
-        list_recycled "$@"
-        ;;
-
-        empty_recyclebin | -e)
-        empty_recyclebin "$@"
-        exit $?
-        ;;
-
-        restore_file | -r)
-        restore_files "$@"
-        exit $?
-        ;;
-
-        search_recycled | -s)
-        search_recycled "$@"
-        exit $?
-        ;;
-
-        display_help | help | -h | --help)
-        display_help "$@"
-        ;;
-
-        show_statistics | -S )
-        show_statistics
-        ;;
-
-        auto_cleanup | -A )
-        auto_cleanup
-        ;;
-
-        check_quota | -Q )
-        check_quota
-        ;;
-
-        preview_file | -P )
-        preview_file "$@"
-        ;;
-
+        initialize_recyclebin|-i)
+            initialize_recyclebin
+            ;;
+        delete_file|-d)
+            # Passar TODOS os argumentos restantes
+            delete_file "$@"
+            local exit_code=$?
+            exit $exit_code
+            ;;
+        list_recycled|-l)
+            list_recycled "$@"
+            ;;
+        empty_recyclebin|-e)
+            empty_recyclebin "$@"
+            local exit_code=$?
+            exit $exit_code
+            ;;
+        restore_file|-r)
+            restore_files "$@"
+            local exit_code=$?
+            exit $exit_code
+            ;;
+        search_recycled|-s)
+            search_recycled "$@"
+            local exit_code=$?
+            exit $exit_code
+            ;;
+        display_help|help|-h|--help)
+            display_help "$@"
+            ;;
+        show_statistics|-S)
+            show_statistics
+            ;;
+        auto_cleanup|-A)
+            auto_cleanup
+            ;;
+        check_quota|-Q)
+            check_quota
+            ;;
+        preview_file|-P)
+            preview_file "$@"
+            ;;
         *)
-        echo "Unknown command"
-        ;;
-
+            echo "Unknown command: $first_arg"
+            display_help
+            return 1
+            ;;
     esac
     return 0
 }
