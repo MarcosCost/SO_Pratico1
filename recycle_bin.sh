@@ -10,7 +10,7 @@
 #################################################
 
 # Global Variables (ALL CAPS)
-RECYCLE_BIN_DIR="$HOME/recycle_bin"
+RECYCLE_BIN_DIR="$HOME/.recycle_bin"
 METADATA_FILE="$RECYCLE_BIN_DIR/metadata.db"
 
 
