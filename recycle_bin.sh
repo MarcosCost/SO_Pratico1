@@ -78,6 +78,7 @@ get_metadata(){
     fi
     local file="$1"
 
+    #Values we need to get:
     local og_filename="${file##*/}"
     local og_abspath="$(realpath "$file")"
     local del_time="$(date "+%Y-%m-%d %H:%M:%S")"
@@ -104,7 +105,7 @@ get_metadata(){
 # Description: Move files/directories to recycle bin
 # Parameters: At least 1 (file/directory paths)
 # Returns: 0 on success
-################################################# 
+#################################################               TODO: no read write permissions, Insufficient disk space
 delete_file(){
 
     #ficheiros protegidos (não podem ser apagados)
@@ -115,7 +116,7 @@ delete_file(){
 
     local any_failed=0
 
-
+    #Para cada um dos argumentos fazer o seguinte
     for varr in "$@"; do
 
         local var="$varr"
@@ -286,7 +287,8 @@ list_recycled(){
         done
         }< "$METADATA_FILE"
 
-        printf "$result" | column -t -s+ 
+        printf "$result" | column -t -s+  | cut -c1-$(tput cols)
+
     elif [ "$#" -eq 1 ] && [ "$1" != "--detailed" ]; then
         echo "\"$1\" is not recognized as a flag"
     else
@@ -319,7 +321,7 @@ empty_recyclebin(){
     local force=0
     local target_id=""
 
-    # Seleção do modo
+    # Parse arguments
     if [ $# -eq 1 ] && [[ "$1" == "--force" ]]; then
         force=1
     elif [ $# -eq 1 ] && [[ "$1" != "--force" ]]; then
@@ -349,7 +351,7 @@ empty_recyclebin(){
                 # Apagar todos os ficheiros
                 rm -rf "$RECYCLE_BIN_DIR/files/"*
 
-                # Reset do metadata file
+                # Reset do metadata file (mantém apenas o header)
                 head -n 1 "$METADATA_FILE" > "$METADATA_FILE.tmp"
                 mv "$METADATA_FILE.tmp" "$METADATA_FILE"
 
@@ -382,8 +384,10 @@ empty_recyclebin(){
 
         case "$confirmation" in
             y|Y|yes|YES)
+                # Apagar o ficheiro físico
                 rm -rf "$RECYCLE_BIN_DIR/files/$target_id"
 
+                # Remover do metadata
                 grep -v "^$target_id," "$METADATA_FILE" > "$METADATA_FILE.tmp"
                 mv "$METADATA_FILE.tmp" "$METADATA_FILE"
 
@@ -407,7 +411,7 @@ empty_recyclebin(){
 # Description: Restore files by id
 # Parameters: At least 1 (ID or Filename)
 # Returns: 0 on success, 1 on failure
-#################################################
+#################################################           TODO:Permission denied at destination;   Disk space issues
 
 restore_files(){
 
@@ -638,6 +642,7 @@ search_recycled(){
             local comparables=("${arr[1]}" "${arr[2]}")
             for compare in "${comparables[@]}"; do
 
+                #Reference 1
                 if [[ "${compare,,}" =~ ${arg,,} ]] || [[ "${compare,,}" == ${arg,,} ]] ; then
                     results+=$(printf "│%-17s│%-25s│%-60s│\n" "${arr[0]}" "${arr[1]}" "${arr[2]}")
                     found=1
@@ -706,10 +711,6 @@ display_help(){
     printf "\n\tempty_recyclebin, -e              ./recycle_bin.sh -e [FLAG] [FILE_ID]\n\t\tIf an Id is provided, searches for ID in the recycle bin and permanently deletes it, if no Id it provided empties recycle bin of all contents.\n\t\tTakes one flag '--force' to skip user confirmation.\n"
     printf "\n\trestore_file, -r                  ./recycle_bin.sh -r [FILES_OR_IDS]\n\t\tRestores all files or directoried specified in the arguments if they exist in the recycle bin\n"
     printf "\n\tsearch_recycled, -s               ./recycle_bin.sh -s [FLAG] [Pattern]\n\t\tSearches the Recyclebin for any file whose name or path mathes the pattern argument.\n\t\tTakes one flag '-c' to make a Case insensitive search\n"
-    printf "\n\tshow_statistics, -S               ./recycle_bin.sh -S\n\t\tDisplays statistics by files, directories and total\n"
-    printf "\n\tauto_cleanup, -A                  ./recycle_bin.sh -A\n\t\tAutomatically deletes files older than RETENTION_DAYS\n"
-    printf "\n\tcheck_quota, -Q                   ./recycle_bin.sh -Q\n\t\tDisplays the percentage of the quota used up and triggers auto_cleanup if exceeded\n"
-    printf "\n\tpreview_file, -P                  ./recycle_bin.sh -P [ID]\n\t\tDisplays the 10 first like of a text file, or the file type of a binary file\n"
 
     echo
     return 0
@@ -723,58 +724,90 @@ display_help(){
 #################################################
 show_statistics(){
 
-    local total_storage=$(
-        local total=0
+    local total_storage=0
+    local file_storage=0
+    local dir_storage=0
+    local file_count=0
+    local dir_count=0
+
+    # Processar metadata apenas se houver entradas
+    if [ -s "$METADATA_FILE" ] && [ $(wc -l < "$METADATA_FILE") -gt 1 ]; then
+        {
+        read  # Pular cabeçalho
         while IFS= read -r line; do
-
             IFS=',' read -ra fields <<< "$line"
-            total=$((total + ${fields[4]}))
 
-        done < <(tail -n +2 "$METADATA_FILE")
-        echo $total
-    )
+            local size=${fields[4]}
+            local type=${fields[5]}
 
-    local file_storage=$(
-        local total=0
-        while IFS= read -r line; do
+            total_storage=$((total_storage + size))
 
-            IFS=',' read -ra fields <<< "$line"
-            if [[ "${fields[5]}" == "file" ]]; then
-                total=$((total + ${fields[4]}))
+            if [[ "$type" == "file" ]]; then
+                file_storage=$((file_storage + size))
+                file_count=$((file_count + 1))
+            elif [[ "$type" == "directory" ]]; then
+                dir_storage=$((dir_storage + size))
+                dir_count=$((dir_count + 1))
             fi
-        done < <(tail -n +2 "$METADATA_FILE")
-        echo $total
-    )
+        done
+        } < "$METADATA_FILE"
+    fi
 
-    local dir_storage=$(
-        local total=0
-        while IFS= read -r line; do
+    local total_count=$((file_count + dir_count))
 
-            IFS=',' read -ra fields <<< "$line"
-            if [[ "${fields[5]}" == "directory" ]]; then
-                total=$((total + ${fields[4]}))
-            fi
-        done < <(tail -n +2 "$METADATA_FILE")
-        echo $total
-    )
+    # Obter quota das configurações
+    local max_size_mb=$(grep "^MAX_SIZE_MB=" "$RECYCLE_BIN_DIR/config" | cut -d '=' -f2)
+    local quota_bytes=$((max_size_mb * 1000000))
 
-    local total_count=$(ls "$RECYCLE_BIN_DIR/files" -1 -p | wc -l)
-    local file_count=$(ls "$RECYCLE_BIN_DIR/files" -1 -p | grep -v / | wc -l)
-    local dir_count=$(ls "$RECYCLE_BIN_DIR/files" -1 -p | grep  / | wc -l)
+    # Calcular percentagens com verificação
+    local total_percent="0.0000000000"
+    local file_percent="0.0000000000"
+    local dir_percent="0.0000000000"
 
-    local quota_bytes=$(( $(head -n 1 "$RECYCLE_BIN_DIR/config" | cut -d '=' -f2) * 1000000 ))
+    if [ $quota_bytes -gt 0 ]; then
+        total_percent=$(echo "scale=10; $total_storage * 100 / $quota_bytes" 2>/dev/null | bc 2>/dev/null || echo "0.0000000000")
+        file_percent=$(echo "scale=10; $file_storage * 100 / $quota_bytes" 2>/dev/null | bc 2>/dev/null || echo "0.0000000000")
+        dir_percent=$(echo "scale=10; $dir_storage * 100 / $quota_bytes" 2>/dev/null | bc 2>/dev/null || echo "0.0000000000")
+    fi
 
-    local result="| +|Total+|Files+|Dir+|\n"
+    # Calcular tamanhos médios com verificação de divisão por zero
+    local avg_total="0B"
+    local avg_files="0B"
+    local avg_dirs="0B"
 
-    result+="|Number of:+|$total_count+|$file_count+|$dir_count+|\n"
-    result+="|Storage used:+|$(bytes_to_mb $total_storage)+|$(bytes_to_mb $file_storage)+|$(bytes_to_mb $dir_storage)+|\n"
-    result+="|Quota+|%.10f%% +|%.10f%% +|%.10f%% +|\n"
-    result+="|Average size+|$(bytes_to_mb $(echo "$total_storage/$total_count" | bc)) +|$(bytes_to_mb $(echo "$file_storage/$file_count" | bc)) +|$(bytes_to_mb $(echo "$dir_storage/$dir_count" | bc)) +|\n"
+    if [ $total_count -gt 0 ]; then
+        avg_total=$(bytes_to_mb $((total_storage / total_count)) 2>/dev/null || echo "0B")
+    fi
 
-    printf "$result" "$(echo "scale=10; $total_storage*100/$quota_bytes" | bc)" "$(echo "scale=10; $file_storage*100/$quota_bytes" | bc)" "$(echo "scale=10; $dir_storage*100/$quota_bytes" | bc)" | column -t -s+
+    if [ $file_count -gt 0 ]; then
+        avg_files=$(bytes_to_mb $((file_storage / file_count)) 2>/dev/null || echo "0B")
+    fi
+
+    if [ $dir_count -gt 0 ]; then
+        avg_dirs=$(bytes_to_mb $((dir_storage / dir_count)) 2>/dev/null || echo "0B")
+    fi
+
+    # Obter entradas mais recentes e mais antigas
+    local newest_entry="N/A"
+    local oldest_entry="N/A"
+
+    if [ -s "$METADATA_FILE" ] && [ $(wc -l < "$METADATA_FILE") -gt 1 ]; then
+        newest_entry=$(tail -n 1 "$METADATA_FILE" | cut -d ',' -f2)
+        oldest_entry=$(head -n 2 "$METADATA_FILE" | tail -n 1 | cut -d ',' -f2)
+    fi
+
+    {
+        echo "| +|Total+|Files+|Dir+|"
+        echo "|Number of:+|$total_count+|$file_count+|$dir_count+|"
+        echo "|Storage used:+|$(bytes_to_mb $total_storage)+|$(bytes_to_mb $file_storage)+|$(bytes_to_mb $dir_storage)+|"
+        echo "|Quota+|${total_percent}% +|${file_percent}% +|${dir_percent}% +|"
+        echo "|Average size+|$avg_total +|$avg_files +|$avg_dirs +|"
+    } | column -t -s+
+
     echo ""
-    echo "Newest entry: $(tail -n 1 "$METADATA_FILE" | cut -d ',' -f2 )"
-    echo "Newest entry: $(head -n 2 "$METADATA_FILE" | tail -n 1 | cut -d ',' -f2 )"
+    echo "Newest entry: $newest_entry"
+    echo "Oldest entry: $oldest_entry"
+
     return 0
 }
 
@@ -815,8 +848,8 @@ auto_cleanup(){
 
 
 #################################################
-# Function: check_quotaa
-# Description: Vẽ se o tamanho da bin excede o tamanho defenido nsa configs, caso positivo automaticamente corre auto cleanup
+# Function: check_quota
+# Description: Vê se o tamanho da bin excede o tamanho definido nas configs, caso positivo automaticamente corre auto cleanup
 # Parameters: 0
 # Returns: 0 on success
 #################################################
@@ -825,21 +858,25 @@ check_quota(){
     local total_storage=$(
         local total=0
         while IFS= read -r line; do
-
             IFS=',' read -ra fields <<< "$line"
             total=$((total + ${fields[4]}))
-
         done < <(tail -n +2 "$METADATA_FILE")
         echo $total
     )
 
-    local quota_bytes=$(($(head -n 1 "$RECYCLE_BIN_DIR/config" | cut -d '=' -f2)*1000000))
+    local max_size_mb=$(grep "^MAX_SIZE_MB=" "$RECYCLE_BIN_DIR/config" | cut -d '=' -f2)
+    local quota_bytes=$((max_size_mb * 1000000))
 
-    local percentage=$(echo "scale=10; $total_storage*100/$quota_bytes" | bc)
-    echo "Quota used: $percentage%"
+    # Calcular porcentagem sem bc - usando cálculo inteiro
+    local percentage=0
+    if [ $quota_bytes -gt 0 ]; then
+        percentage=$((total_storage * 100 / quota_bytes))
+    fi
 
-    if [[ ${percentage%.*} -ge 100 ]];then
-        echo "Quota execeded running auto cleanup"
+    echo "Quota used: ${percentage}%"
+
+    if [ $percentage -ge 100 ]; then
+        echo "Quota exceeded running auto cleanup"
         auto_cleanup
     fi
     return 0
