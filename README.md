@@ -71,7 +71,25 @@ If no parameters are provided to recycle_bin the script will simply inform the u
 ## Configuration
 To configure settings such as maximum mb size of bin or the retention days for auto cleanup, access "$HOME/.recycle_bin/config" and alter said fields.
 ## Examples
-[Detailed usage examples with screenshots]
+
+### Delete Files
+![delete_files.png](screenshots/readme/delete_files.png)
+
+### Empty Recycle
+![Empty_recycle.png](screenshots/readme/Empty_recycle.png)
+
+### Initialize Bin
+![Initialize_bin.png](screenshots/readme/Initialize_bin.png)
+
+### List Files
+![list_files.png](screenshots/readme/list_files.png)
+
+### Restore Files
+![Restore_files.png](screenshots/readme/Restore_files.png)
+
+### Search File
+![Search_file.png](screenshots/readme/Search_file.png)
+
 ## Known Issues
 1. **Space Handling:** Minor issues with filenames containing spaces
 2. **Concurrency:** No locking mechanism for simultaneous operations

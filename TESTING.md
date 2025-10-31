@@ -29,7 +29,9 @@
 - **Expected:** ~/.recycle_bin/ created with subdirectories and metadata files
 - **Actual:** All directories and files created successfully
 - **Log Entry:** "Recycle Bin initialized sucessfully"
-- **Screenshot:** `screenshots/testing/1_1.png`
+- **Screenshot:**
+
+![](screenshots/testing/1_1.png)
 
 #### Test 1.2: Delete Single File
 - **Status:** ✓ PASS
@@ -41,7 +43,9 @@
 - **Expected:** File moved, metadata created, success message displayed
 - **Actual:** File successfully deleted and metadata recorded
 - **Log Entry:** "Was deleted; ID:[unique_id]"
-- **Screenshot:** `screenshots/testing/1_2.png`
+- **Screenshot:** 
+
+![](screenshots/testing/1_2.png)
 
 #### Test 1.3: Delete Multiple Files
 - **Status:** ✓ PASS
@@ -52,8 +56,9 @@
 - **Expected:** All files moved to recycle bin with individual metadata entries
 - **Actual:** All files successfully processed
 - **Log Entry:** Multiple deletion entries logged
-- **Screenshot:** `screenshots/testing/1_3.png`
+- **Screenshot:** 
 
+![](screenshots/testing/1_3.png)
 #### Test 1.4: Delete Empty Directory
 - **Status:** ✓ PASS
 - **Description:** Delete an empty directory
@@ -62,7 +67,9 @@
   2. Run: `./recycle_bin.sh -d empty_dir`
 - **Expected:** Directory moved to recycle bin, recorded as "directory" type
 - **Actual:** Empty directory successfully deleted
-- **Screenshot:** `screenshots/testing/1_4.png`
+- **Screenshot:** 
+
+![](screenshots/testing/1_4.png)
 
 #### Test 1.5: Delete Directory with Contents
 - **Status:** ✓ PASS
@@ -72,7 +79,9 @@
   2. Run: `./recycle_bin.sh -d test_dir`
 - **Expected:** All contents moved recursively, metadata for each item
 - **Actual:** Recursive deletion working correctly
-- **Screenshot:** `screenshots/testing/1_5.png`
+- **Screenshot:** 
+
+![](screenshots/testing/1_5.png)
 
 #### Test 1.6: List Empty Recycle Bin
 - **Status:** ✓ PASS
@@ -82,7 +91,9 @@
   2. Run: `./recycle_bin.sh -l`
 - **Expected:** "Recycle Bin is Currently Empty" message
 - **Actual:** Proper empty state handling
-- **Screenshot:** `screenshots/testing/1_6.png`
+- **Screenshot:** 
+
+![](screenshots/testing/1_6.png)
 
 #### Test 1.7: List with Items
 - **Status:** ✓ PASS
@@ -92,7 +103,9 @@
   2. Run: `./recycle_bin.sh -l` and `./recycle_bin.sh -l --detailed`
 - **Expected:** Formatted table output with file information
 - **Actual:** Both normal and detailed views working correctly
-- **Screenshot:** `screenshots/testing/1_7.png`
+- **Screenshot:** 
+
+![](screenshots/testing/1_7.png)
 
 #### Test 1.8: Restore File by ID
 - **Status:** ✓ PASS
@@ -102,7 +115,9 @@
   2. Run: `./recycle_bin.sh -r [ID]`
 - **Expected:** File restored to original location with permissions
 - **Actual:** Successful restoration with metadata cleanup
-- **Screenshot:** `screenshots/testing/1_8.png`
+- **Screenshot:** 
+
+![](screenshots/testing/1_8.png)
 
 #### Test 1.9: Restore to Non-Existent Path
 - **Status:** ✓ PASS
@@ -112,7 +127,8 @@
   2. Run restore command
 - **Expected:** Directory structure recreated, file restored
 - **Actual:** Automatic directory creation working
-- **Screenshot:** `screenshots/testing/1_9.png`
+- **Screenshot:** 
+![](screenshots/testing/1_9.png)
 
 #### Test 1.10: Empty Entire Recycle Bin
 - **Status:** ✓ PASS
@@ -122,7 +138,9 @@
   2. Run: `./recycle_bin.sh -e` (with confirmation)
 - **Expected:** All files and metadata removed
 - **Actual:** Complete cleanup performed
-- **Screenshot:** `screenshots/testing/1_10.png`
+- **Screenshot:** 
+
+![](screenshots/testing/1_10.png)
 
 #### Test 1.11: Search for Existing File
 - **Status:** ✓ PASS
@@ -132,7 +150,9 @@
   2. Run: `./recycle_bin.sh -s "pattern"`
 - **Expected:** Matching files displayed in results
 - **Actual:** Search working correctly with case-sensitive and insensitive options
-- **Screenshot:** `screenshots/testing/1_11.png`
+- **Screenshot:** 
+
+![](screenshots/testing/1_11.png)
 
 #### Test 1.12: Search for Non-Existent File
 - **Status:** ✓ PASS
@@ -141,7 +161,9 @@
   1. Run: `./recycle_bin.sh -s "nonexistent_pattern"`
 - **Expected:** "No matches found" message
 - **Actual:** Proper handling of no results
-- **Screenshot:** `screenshots/testing/1_12.png`
+- **Screenshot:**
+
+ ![](screenshots/testing/1_12.png)
 
 #### Test 1.13: Help System
 - **Status:** ✓ PASS
@@ -150,7 +172,9 @@
   1. Run: `./recycle_bin.sh -h`, `./recycle_bin.sh --help`, `./recycle_bin.sh help`
 - **Expected:** Usage instructions and command documentation
 - **Actual:** All help commands working
-- **Screenshot:** `screenshots/testing/1_13.png`
+- **Screenshot:** 
+
+![](screenshots/testing/1_13.png)
 
 ### 2. Edge Cases Tests
 
@@ -161,7 +185,9 @@
   1. Run: `./recycle_bin.sh -d non_existent_file.txt`
 - **Expected:** Clear error message, no system crash
 - **Actual:** "isn't a filename or directory" error handled gracefully
-- **Screenshot:** `screenshots/testing/2_1.png`
+- **Screenshot:** 
+
+![](screenshots/testing/2_1.png)
 
 #### Test 2.2: Delete File Without Permissions
 - **Status:** ✓ PASS
@@ -171,7 +197,9 @@
   2. Run: `./recycle_bin.sh -d protected.txt`
 - **Expected:** Permission error message
 - **Actual:** "No read permission" error properly handled
-- **Screenshot:** `screenshots/testing/2_2.png`
+- **Screenshot:** 
+
+![](screenshots/testing/2_2.png)
 
 #### Test 2.3: Restore with Non-Existent ID
 - **Status:** ✓ PASS
@@ -180,7 +208,9 @@
   1. Run: `./recycle_bin.sh -r 0000000000_xxxxxx`
 - **Expected:** ID not found error
 - **Actual:** "ID not found in recycle bin" error message
-- **Screenshot:** `screenshots/testing/2_3.png`
+- **Screenshot:** 
+
+![](screenshots/testing/2_3.png)
 
 #### Test 2.4: Filenames with Spaces
 - **Status:** ✗ FAIL
@@ -191,7 +221,9 @@
 - **Expected:** Files with spaces handled correctly
 - **Actual:** Issues with space handling in filenames
 - **Issue:** Requires better quoting in certain operations
-- **Screenshot:** `screenshots/testing/2_4.png`
+- **Screenshot:** 
+
+![](screenshots/testing/2_4.png)
 
 #### Test 2.5: Special Characters in Filenames
 - **Status:** ✓ PASS
@@ -201,7 +233,9 @@
   2. Delete and restore operations
 - **Expected:** Special characters handled properly
 - **Actual:** Successful operations with special characters
-- **Screenshot:** `screenshots/testing/2_5.png`
+- **Screenshot:** 
+
+![](screenshots/testing/2_5.png)
 
 #### Test 2.6: Hidden Files
 - **Status:** ✓ PASS
@@ -211,7 +245,9 @@
   2. Delete and verify metadata
 - **Expected:** Hidden files processed correctly
 - **Actual:** Hidden files properly handled
-- **Screenshot:** `screenshots/testing/2_6.png`
+- **Screenshot:** 
+
+![](screenshots/testing/2_6.png)
 
 #### Test 2.7: Very Long Filenames
 - **Status:** ✓ PASS
@@ -221,7 +257,9 @@
   2. Test delete/list operations
 - **Expected:** Long names handled without truncation issues
 - **Actual:** System handles maximum length filenames correctly
-- **Screenshot:** `screenshots/testing/2_7.png`
+- **Screenshot:** 
+
+![](screenshots/testing/2_7.png)
 
 #### Test 2.8: Very Large Files
 - **Status:** ✓ PASS
@@ -231,7 +269,9 @@
   2. Test deletion
 - **Expected:** Large files processed without performance issues
 - **Actual:** Successful handling of large files
-- **Screenshot:** `screenshots/testing/2_8.png`
+- **Screenshot:** 
+
+![](screenshots/testing/2_8.png)
 
 #### Test 2.9: Files from Different Directories
 - **Status:** ✓ PASS
@@ -241,7 +281,9 @@
   2. Single delete command with multiple paths
 - **Expected:** All files processed correctly
 - **Actual:** Multi-directory operations working
-- **Screenshot:** `screenshots/testing/2_9.png`
+- **Screenshot:** 
+
+![](screenshots/testing/2_9.png)
 
 #### Test 2.10: Restore Conflict Resolution
 - **Status:** ✓ PASS
@@ -251,7 +293,9 @@
   2. Attempt restore
 - **Expected:** Conflict resolution menu (Overwrite/Rename/Cancel)
 - **Actual:** All conflict options working correctly
-- **Screenshot:** `screenshots/testing/2_10.png`
+- **Screenshot:** 
+
+![](screenshots/testing/2_10.png)
 
 ### 3. Error Handling Tests
 
@@ -263,7 +307,9 @@
   2. Run: `./recycle_bin.sh -x`
 - **Expected:** Clear error messages, non-zero exit codes
 - **Actual:** "Unknown command" errors properly handled
-- **Screenshot:** `screenshots/testing/3_1.png`
+- **Screenshot:** 
+
+![](screenshots/testing/3_1.png)
 
 #### Test 3.2: Missing Required Parameters
 - **Status:** ✓ PASS
@@ -273,7 +319,9 @@
   2. Run: `./recycle_bin.sh -r`
 - **Expected:** Usage instructions displayed
 - **Actual:** Proper parameter validation
-- **Screenshot:** `screenshots/testing/3_2.png`
+- **Screenshot:** 
+
+![](screenshots/testing/3_2.png)
 
 #### Test 3.3: Insufficient Disk Space
 - **Status:** ✗ FAIL
@@ -293,7 +341,9 @@
   1. Test operations with insufficient permissions
 - **Expected:** Appropriate error messages
 - **Actual:** Comprehensive permission checking
-- **Screenshot:** `screenshots/testing/3_4.png`
+- **Screenshot:** 
+
+![](screenshots/testing/3_4.png)
 
 #### Test 3.5: Recycle Bin Self-Deletion Protection
 - **Status:** ✓ PASS
@@ -302,7 +352,9 @@
   1. Attempt: `./recycle_bin.sh -d ~/.recycle_bin`
 - **Expected:** Operation blocked with error message
 - **Actual:** Proper protection implemented
-- **Screenshot:** `screenshots/testing/3_5.png`
+- **Screenshot:** 
+
+![](screenshots/testing/3_5.png)
 
 #### Test 3.6: Concurrent Operations
 - **Status:** ✓ PASS
@@ -362,7 +414,9 @@
   1. Run: `./recycle_bin.sh -S`
 - **Expected:** Total items, storage usage, file type breakdown
 - **Actual:** Comprehensive statistics displayed
-- **Screenshot:** `screenshots/testing/5_1.png`
+- **Screenshot:** 
+
+![](screenshots/testing/5_1.png)
 
 #### Test 5.2: Quota Management
 - **Status:** ✓ PASS
@@ -371,7 +425,9 @@
   1. Run: `./recycle_bin.sh -Q`
 - **Expected:** Quota usage displayed, warnings when exceeded
 - **Actual:** Quota checking working
-- **Screenshot:** `screenshots/testing/5_2.png`
+- **Screenshot:** 
+
+![](screenshots/testing/5_2.png)
 
 #### Test 5.3: File Preview
 - **Status:** ✓ PASS
@@ -380,7 +436,9 @@
   1. Run: `./recycle_bin.sh -P [file_id]`
 - **Expected:** Text preview or file type information
 - **Actual:** Preview functionality implemented
-- **Screenshot:** `screenshots/testing/5_3.png`
+- **Screenshot:** 
+
+![](screenshots/testing/5_3.png)
 
 ---
 
@@ -406,6 +464,13 @@
 - **Workaround:** Avoid running multiple instances simultaneously
 - **Root Cause:** No file locking implementation
 - **Plan:** Add lock file mechanism in future version
+
+### Issue 4: Formating Issues For Long Output
+- **Description:** When table output is longer than terminal width, formating gets messed up
+- **Impact:** Low - No system impact, only visual
+- **Workaround:** Have a long width terminal or avoid listing long File Names or File Paths
+- **Root Cause:** Terminal limitations
+- **Plan:** Add a feature to cut the output based on terminal width.
 
 ---
 
