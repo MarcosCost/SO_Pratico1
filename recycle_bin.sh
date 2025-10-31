@@ -78,7 +78,6 @@ get_metadata(){
     fi
     local file="$1"
 
-    #Values we need to get:
     local og_filename="${file##*/}"
     local og_abspath="$(realpath "$file")"
     local del_time="$(date "+%Y-%m-%d %H:%M:%S")"
@@ -105,7 +104,7 @@ get_metadata(){
 # Description: Move files/directories to recycle bin
 # Parameters: At least 1 (file/directory paths)
 # Returns: 0 on success
-#################################################               TODO: no read write permissions, Insufficient disk space
+################################################# 
 delete_file(){
 
     #ficheiros protegidos (não podem ser apagados)
@@ -116,7 +115,7 @@ delete_file(){
 
     local any_failed=0
 
-    #Para cada um dos argumentos fazer o seguinte
+
     for varr in "$@"; do
 
         local var="$varr"
@@ -287,8 +286,7 @@ list_recycled(){
         done
         }< "$METADATA_FILE"
 
-        printf "$result" | column -t -s+  | cut -c1-$(tput cols)
-
+        printf "$result" | column -t -s+ 
     elif [ "$#" -eq 1 ] && [ "$1" != "--detailed" ]; then
         echo "\"$1\" is not recognized as a flag"
     else
@@ -321,7 +319,7 @@ empty_recyclebin(){
     local force=0
     local target_id=""
 
-    # Parse arguments
+    # Seleção do modo
     if [ $# -eq 1 ] && [[ "$1" == "--force" ]]; then
         force=1
     elif [ $# -eq 1 ] && [[ "$1" != "--force" ]]; then
@@ -351,7 +349,7 @@ empty_recyclebin(){
                 # Apagar todos os ficheiros
                 rm -rf "$RECYCLE_BIN_DIR/files/"*
 
-                # Reset do metadata file (mantém apenas o header)
+                # Reset do metadata file
                 head -n 1 "$METADATA_FILE" > "$METADATA_FILE.tmp"
                 mv "$METADATA_FILE.tmp" "$METADATA_FILE"
 
@@ -384,10 +382,8 @@ empty_recyclebin(){
 
         case "$confirmation" in
             y|Y|yes|YES)
-                # Apagar o ficheiro físico
                 rm -rf "$RECYCLE_BIN_DIR/files/$target_id"
 
-                # Remover do metadata
                 grep -v "^$target_id," "$METADATA_FILE" > "$METADATA_FILE.tmp"
                 mv "$METADATA_FILE.tmp" "$METADATA_FILE"
 
@@ -411,7 +407,7 @@ empty_recyclebin(){
 # Description: Restore files by id
 # Parameters: At least 1 (ID or Filename)
 # Returns: 0 on success, 1 on failure
-#################################################           TODO:Permission denied at destination;   Disk space issues
+#################################################
 
 restore_files(){
 
@@ -642,7 +638,6 @@ search_recycled(){
             local comparables=("${arr[1]}" "${arr[2]}")
             for compare in "${comparables[@]}"; do
 
-                #Reference 1
                 if [[ "${compare,,}" =~ ${arg,,} ]] || [[ "${compare,,}" == ${arg,,} ]] ; then
                     results+=$(printf "│%-17s│%-25s│%-60s│\n" "${arr[0]}" "${arr[1]}" "${arr[2]}")
                     found=1
@@ -711,6 +706,10 @@ display_help(){
     printf "\n\tempty_recyclebin, -e              ./recycle_bin.sh -e [FLAG] [FILE_ID]\n\t\tIf an Id is provided, searches for ID in the recycle bin and permanently deletes it, if no Id it provided empties recycle bin of all contents.\n\t\tTakes one flag '--force' to skip user confirmation.\n"
     printf "\n\trestore_file, -r                  ./recycle_bin.sh -r [FILES_OR_IDS]\n\t\tRestores all files or directoried specified in the arguments if they exist in the recycle bin\n"
     printf "\n\tsearch_recycled, -s               ./recycle_bin.sh -s [FLAG] [Pattern]\n\t\tSearches the Recyclebin for any file whose name or path mathes the pattern argument.\n\t\tTakes one flag '-c' to make a Case insensitive search\n"
+    printf "\n\tshow_statistics, -S               ./recycle_bin.sh -S\n\t\tDisplays statistics by files, directories and total\n"
+    printf "\n\tauto_cleanup, -A                  ./recycle_bin.sh -A\n\t\tAutomatically deletes files older than RETENTION_DAYS\n"
+    printf "\n\tcheck_quota, -Q                   ./recycle_bin.sh -Q\n\t\tDisplays the percentage of the quota used up and triggers auto_cleanup if exceeded\n"
+    printf "\n\tpreview_file, -P                  ./recycle_bin.sh -P [ID]\n\t\tDisplays the 10 first like of a text file, or the file type of a binary file\n"
 
     echo
     return 0

@@ -495,6 +495,7 @@ RETENTION_DAYS=30
 1. **Space Handling:** Minor issues with filenames containing spaces
 2. **Concurrency:** No locking mechanism for simultaneous operations
 3. **Date Arithmetic:** Simplified date comparison in auto-cleanup
+4. **Long Output** In some cases (most commonly with detailed lists), columns can appear deformed if the output is too long for the window width.
 
 ### 10.2 Planned Enhancements
 1. **File Locking:** Implement `flock` for concurrent operation safety

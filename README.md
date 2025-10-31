@@ -71,11 +71,15 @@ If no parameters are provided to recycle_bin the script will simply inform the u
 ## Configuration
 To configure settings such as maximum mb size of bin or the retention days for auto cleanup, access "$HOME/.recycle_bin/config" and alter said fields.
 ## Examples
-[Detailed usage examples with screenshots]s
+[Detailed usage examples with screenshots]
 ## Known Issues
-[Any limitations or bugs]
+1. **Space Handling:** Minor issues with filenames containing spaces
+2. **Concurrency:** No locking mechanism for simultaneous operations
+3. **Date Arithmetic:** Simplified date comparison in auto-cleanup
+4. **Long Output** In some cases (most commonly with detailed lists), columns can appear deformed if the output is too long for the window width.
 ## References
 [\[How to output neat columns regardless of variable size\]](https://stackoverflow.com/questions/6462894/how-can-i-format-the-output-of-a-bash-command-in-neat-columns) <br>
 [\[Custom field separator for command column\]](https://stackoverflow.com/questions/14218470/specific-a-delimiter-to-separate-data-into-columns) <br>
 [\[numfmt for byte conversion\]](https://askubuntu.com/questions/1463041/convert-byte-value-to-mb-in-bash-script)<br>
 [\[Split line into array using read and custom IFS\]](https://stackoverflow.com/questions/10586153/how-to-split-a-string-into-an-array-in-bash)<br>
+[\[Case insensitive string comparing\]](https://stackoverflow.com/questions/1728683/case-insensitive-comparison-of-strings-in-shell-script)
