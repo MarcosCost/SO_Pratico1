@@ -2,10 +2,7 @@
 
 **Student Name:** Marcos Costa, José Mendes  
 **Student ID:** 125882, 114429  
-**Date:** $(date +%Y-%m-%d)  
-**Script Version:** 1.0  
 
----
 
 ## Test Summary
 
