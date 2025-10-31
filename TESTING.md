@@ -316,14 +316,14 @@
 
 ### 4. Performance Tests
 
-#### Test 4.1: Mass Deletion (30+ files)
+#### Test 4.1: Mass Deletion (100+ files)
 - **Status:** ✓ PASS
 - **Description:** Delete large number of files efficiently
 - **Steps:**
   1. Create 30+ test files
   2. Time mass deletion operation
 - **Expected:** Completion within reasonable time (<10 seconds)
-- **Actual:** Completed in 3 seconds - Excellent performance
+- **Actual:** Completed in 7 seconds - Excellent performance
 
 #### Test 4.2: Large List Operations
 - **Status:** ✓ PASS
@@ -332,7 +332,7 @@
   1. Populate recycle bin with many items
   2. Time list operations
 - **Expected:** Responsive display
-- **Actual:** Instantaneous listing performance
+- **Actual:** Completed in 1 second - Excellent performance
 
 #### Test 4.3: Search Performance
 - **Status:** ✓ PASS

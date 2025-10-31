@@ -365,7 +365,7 @@ test_missing_parameters() {
 test_performance_mass_deletion() {
     print_header "Test 23: Performance - Mass Deletion"
     
-    for i in {1..30}; do
+    for i in {1..100}; do
         echo "content $i" > "$TEST_DIR/performance_file_$i.txt"
     done
     
@@ -374,7 +374,7 @@ test_performance_mass_deletion() {
     local end_time=$(date +%s)
     local duration=$((end_time - start_time))
     
-    print_result $? "Mass deletion of 30 files"
+    print_result $? "Mass deletion of 100 files"
     [ $duration -lt 10 ]
     print_result $? "Mass deletion completed in reasonable time ($duration seconds)"
 }
