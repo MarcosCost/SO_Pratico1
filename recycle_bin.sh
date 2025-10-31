@@ -3,7 +3,7 @@
 
 #################################################
 # Linux Recycle Bin Simulation
-# Author: Your Name
+# Author: Marcos Costa (125882), José Mendes (114429)
 # Date: YYYY-MM-DD
 # Description: Shell-based recycle bin system
 # Version: 1.0
@@ -25,11 +25,11 @@ initialize_recyclebin(){
     mkdir -p "$RECYCLE_BIN_DIR/files"
     #verificar se os ficheiros que precisam de ser inicializados com dados pre-existentes ja existem para evitar sobescrever dados no caso de dupla chamada da função
     if [ ! -f $METADATA_FILE ]; then
-        printf "ID,ORIGINAL_NAME,ORIGINAL_PATH,DELETION_DATE,FILE_SIZE,FILE_TYPE,PERMISSIONS,OWNER\n" > $METADATA_FILE    
+        printf "ID,ORIGINAL_NAME,ORIGINAL_PATH,DELETION_DATE,FILE_SIZE,FILE_TYPE,PERMISSIONS,OWNER\n" > $METADATA_FILE
     fi
     if [ ! -f "$RECYCLE_BIN_DIR/config" ]; then
         printf "MAX_SIZE_MB=1024\nRETENTION_DAYS=30\n" > "$RECYCLE_BIN_DIR/config"
-    fi 
+    fi
     touch "$RECYCLE_BIN_DIR/recyclebin.log"
     echo "Recycle Bin initialized sucessfully"
     return 0
@@ -114,23 +114,61 @@ delete_file(){
         "TESTING.md" "test_suite.sh" ".gitignore"
     )
 
+    local any_failed=0
+
     #Para cada um dos argumentos fazer o seguinte
     for varr in "$@"; do
-        
+
         local var="$varr"
 
         #Skip invalid input
         if [ ! -e "$var" ]; then
             echo "\"$var\" isn't a filename or directory"
             log "Failed to delete $(pwd)/$var - There is no such File/Dir"
+            any_failed=1
             continue
         fi
+
+        # Check if we have read permission
+        if [ ! -r "$var" ]; then
+            echo "Error: No read permission for '$var'"
+            log "Failed to delete $var - No read permission"
+            any_failed=1
+            continue
+        fi
+
+        # Check if we have write permission to the directory containing the file
+        local parent_dir=$(dirname "$var")
+        if [ ! -w "$parent_dir" ]; then
+            echo "Error: No write permission in directory for '$var'"
+            log "Failed to delete $var - No write permission in parent directory"
+            any_failed=1
+            continue
+        fi
+
+        # Check if we have write permission to the file itself (for files)
+        if [ -f "$var" ] && [ ! -w "$var" ]; then
+            echo "Error: No write permission for file '$var'"
+            log "Failed to delete $var - No write permission for file"
+            any_failed=1
+            continue
+        fi
+
+        # Check if we have execute permission for directories
+        if [ -d "$var" ] && [ ! -x "$var" ]; then
+            echo "Error: No execute permission for directory '$var'"
+            log "Failed to delete $var - No execute permission for directory"
+            any_failed=1
+            continue
+        fi
+
         local abs_path=$(realpath "$var" 2>/dev/null)
         #Não deletar a recycle bin itself
         if [[ "$abs_path" == "$(realpath "$RECYCLE_BIN_DIR" 2>/dev/null)"* ]] ||
            [[ "$abs_path" == "$HOME/.recycle_bin"* ]]; then
             echo "Cannot delete recycle bin itself or its contents"
             log "Attempted to delete recycle bin: $abs_path"
+            any_failed=1
             continue
         fi
         #Não deletar ficheiros protegidos
@@ -141,6 +179,7 @@ delete_file(){
                 echo "Cannot delete Project Structure items"
                 log "Error: Cannot delete Project Structure items"
                 is_protected=1
+                any_failed=1
                 break
             fi
         done
@@ -151,7 +190,7 @@ delete_file(){
 
 
         if [[ -f $var ]];then
-            
+
             local current_id=$(generate_unique_id)
             echo "$current_id,$(get_metadata "$var")" >> $METADATA_FILE
             mv "$var" "$RECYCLE_BIN_DIR/files/$current_id"
@@ -174,7 +213,12 @@ delete_file(){
         fi
 
     done
-    return 0
+
+    if [ $any_failed -eq 1 ]; then
+        return 1
+    else
+        return 0
+    fi
 }
 
 #################################################
@@ -184,7 +228,7 @@ delete_file(){
 # Returns: 0 on success
 #################################################
 bytes_to_mb() {
-    local result=$(numfmt --to=si --suffix=B "$1")    
+    local result=$(numfmt --to=si --suffix=B "$1")
     echo "$result"
     return 0
 }
@@ -216,8 +260,8 @@ list_recycled(){
     fi
 
     if [ "$#" -eq 0 ]; then
-        
-        local result="|ID+|ORIGINAL_NAME+|DELETION_DATE+|FILE_SIZE+|\n"        
+
+        local result="|ID+|ORIGINAL_NAME+|DELETION_DATE+|FILE_SIZE+|\n"
         {
         read
         while read -r line;do
@@ -225,14 +269,14 @@ list_recycled(){
             IFS="," read -ra arr <<< $line
             result+="|${arr[0]}+|${arr[1]}+|${arr[3]}+|$(bytes_to_mb ${arr[4]})+|\n"
 
-        done 
+        done
         }< "$METADATA_FILE"
 
         printf "$result" | column -t -s+
 
     elif [ "$#" -eq 1 ] && [ "$1" == "--detailed" ]; then
-        
-        local result="|ID+|ORIGINAL_NAME+|ORIGINAL_PATH+|DELETION_DATE+|FILE_SIZE+|FILE_TYPE+|PERMISSION+|OWNER+|\n"        
+
+        local result="|ID+|ORIGINAL_NAME+|ORIGINAL_PATH+|DELETION_DATE+|FILE_SIZE+|FILE_TYPE+|PERMISSION+|OWNER+|\n"
         {
         read
         while read -r line;do
@@ -240,7 +284,7 @@ list_recycled(){
             IFS="," read -ra arr <<< $line
             result+="|${arr[0]}+|${arr[1]}+|${arr[2]}+|${arr[3]}+|$(bytes_to_mb ${arr[4]})+|${arr[5]}+|${arr[6]}+|${arr[7]}+|\n"
 
-        done 
+        done
         }< "$METADATA_FILE"
 
         printf "$result" | column -t -s+  | cut -c1-$(tput cols)
@@ -264,7 +308,7 @@ list_recycled(){
 # Function: empty_recyclebin
 # Description: Empty recycle bin (all items or specific ID)
 # Parameters: 0,1 or 2 (--force, specific ID)
-# Returns: 0 on success
+# Returns: 0 on success, 1 on failure
 #################################################              TODO: Display summary of deleted items
 empty_recyclebin(){
     # Verificar se há itens na recycle bin
@@ -292,8 +336,8 @@ empty_recyclebin(){
     fi
 
     # Modo: Empty all
-    if [[ "$target_id" == "" ]]; then
-        
+    if [[ -z "$target_id" ]]; then
+
         if [[ $force == 1 ]];then
             confirmation="yes"
         else
@@ -366,14 +410,18 @@ empty_recyclebin(){
 # Function: restore_files
 # Description: Restore files by id
 # Parameters: At least 1 (ID or Filename)
-# Returns: 0 on success
+# Returns: 0 on success, 1 on failure
 #################################################           TODO:Permission denied at destination;   Disk space issues
+
 restore_files(){
 
     if [[ "$#" -lt 1 ]]; then
-        echo "Restore Files needs ate least 1 argument"
+        echo "Error: Restore Files needs at least 1 argument"
+        echo "Usage: ./recycle_bin.sh -r [ID_OR_FILENAME]"
         return 1
     fi
+
+    local any_failed=0
 
     for var in "$@"; do
 
@@ -383,13 +431,23 @@ restore_files(){
             # Verificar se o ID existe no metadata
             if ! grep -q "^$var," "$METADATA_FILE"; then
                 echo "Error: ID '$var' not found in recycle bin"
-                log "Failed to delete item with ID '$var' - ID not found"
-                return 1
+                log "Failed to restore item with ID '$var' - ID not found"
+                any_failed=1
+                continue
             fi
 
             #Split metadata into array
             IFS=',' read -ra arr <<< "$(grep "^$var," "$METADATA_FILE")"
 
+            # Check if we have write permission to restore location
+            local restore_dir=$(dirname "${arr[2]}")
+            if [ ! -w "$restore_dir" ] && [ ! -w "$(dirname "$restore_dir")" ]; then
+                echo "Error: No write permission to restore to '${arr[2]}'"
+                log "Failed to restore ${arr[0]} - No write permission to destination"
+                any_failed=1
+                continue
+            fi
+
             #Caso ja exista
             if [[ -e "${arr[2]}" ]];then
 
@@ -398,66 +456,82 @@ restore_files(){
                 read -r confirmation
 
                 case "$confirmation" in
-                    O)
+                    O|o)
+                        # Check write permission for overwrite
+                        if [ -f "${arr[2]}" ] && [ ! -w "${arr[2]}" ]; then
+                            echo "Error: No write permission to overwrite '${arr[2]}'"
+                            any_failed=1
+                            continue
+                        fi
+
                         #Fix for placing directories inside directories instead of replacing
                         [[ -d "${arr[2]}" ]] && mv "${arr[2]}" "${arr[2]}_old"
 
                         mv "$RECYCLE_BIN_DIR/files/${arr[0]}" "${arr[2]}"
 
                         [[ -d "${arr[2]}_old" ]] && rm -rf "${arr[2]}_old"
-                        
+
                         grep -v "^${arr[0]}," "$METADATA_FILE" > "$METADATA_FILE.tmp"
                         mv "$METADATA_FILE.tmp" "$METADATA_FILE"
-                        chmod "${arr[6]}" "${arr[2]}" 
+                        chmod "${arr[6]}" "${arr[2]}"
 
                         echo "Sucessfully Overwrote \"${arr[1]}\""
                         log "Sucessfully Overwrote \"${arr[2]}\" with \"${arr[0]}\""
-                        continue
                         ;;
-                    M)
+                    M|m)
                         local timestamp=$(date +%s)
                         mv "$RECYCLE_BIN_DIR/files/${arr[0]}" "${arr[2]}_$timestamp"
                         grep -v "^${arr[0]}," "$METADATA_FILE" > "$METADATA_FILE.tmp"
                         mv "$METADATA_FILE.tmp" "$METADATA_FILE"
-                        chmod "${arr[6]}" "${arr[2]}_$timestamp" 
+                        chmod "${arr[6]}" "${arr[2]}_$timestamp"
 
                         echo "Sucessfully restored \"${arr[1]}\" with name \"${arr[1]}_$timestamp\""
                         log "Sucessfully restored \"${arr[0]}\" at \"${arr[2]}_$timestamp\""
-                        continue
                         ;;
                     *)
                         echo "Restore operation for \"${arr[1]}\" was canceled"
                         log "Restore operation for \"${arr[0]}\" was canceled"
+                        any_failed=1
                         continue
                         ;;
 
                 esac
+            else
+                #Caso não exista
+
+                #Criar any parent dirs necessarios to avoid errors
+                mkdir -p "$(dirname "${arr[2]}")"
+
+                mv "$RECYCLE_BIN_DIR/files/${arr[0]}" "${arr[2]}"
+                grep -v "^${arr[0]}," "$METADATA_FILE" > "$METADATA_FILE.tmp"
+                mv "$METADATA_FILE.tmp" "$METADATA_FILE"
+                chmod "${arr[6]}" "${arr[2]}"
+
+                echo "\"${arr[1]}\" restored sucessfully"
+                log "\"${arr[0]}\" restored sucessfully"
             fi
 
-            #Caso não exista
-            
-            #Criar any parent dirs necessarios to avoid errors
-            mkdir -p "$(dirname "${arr[2]}")"
-            
-            mv "$RECYCLE_BIN_DIR/files/${arr[0]}" "${arr[2]}"
-            grep -v "^${arr[0]}," "$METADATA_FILE" > "$METADATA_FILE.tmp"
-            mv "$METADATA_FILE.tmp" "$METADATA_FILE"
-            chmod "${arr[6]}" "${arr[2]}"
-
-            echo "\"${arr[1]}\" restored sucessfully"
-            log "\"${arr[0]}\" restored sucessfully"
-            return 0
         else #Mode Filename
 
             # Verificar se o Filename existe no metadata
-            if ! grep -q "^[0-9]\{10\}_[a-zA-Z0-9]\{6\},$var," "$METADATA_FILE"; then
+            if ! grep -q ",$var," "$METADATA_FILE"; then
                 echo "Error: Filename '$var' not found in recycle bin"
-                log "Failed to delete item with Filename '$var' - Filename not found"
-                return 1
+                log "Failed to restore item with Filename '$var' - Filename not found"
+                any_failed=1
+                continue
             fi
-            
+
             #Split metadata into array
-            IFS=',' read -ra arr <<< "$(grep "^[0-9]\{10\}_[a-zA-Z0-9]\{6\},$var," "$METADATA_FILE")"
+            IFS=',' read -ra arr <<< "$(grep ",$var," "$METADATA_FILE")"
+
+            # Check if we have write permission to restore location
+            local restore_dir=$(dirname "${arr[2]}")
+            if [ ! -w "$restore_dir" ] && [ ! -w "$(dirname "$restore_dir")" ]; then
+                echo "Error: No write permission to restore to '${arr[2]}'"
+                log "Failed to restore ${arr[0]} - No write permission to destination"
+                any_failed=1
+                continue
+            fi
 
             #Caso ja exista
             if [[ -e "${arr[2]}" ]];then
@@ -467,7 +541,13 @@ restore_files(){
                 read -r confirmation
 
                 case "$confirmation" in
-                    O)
+                    O|o)
+                        # Check write permission for overwrite
+                        if [ -f "${arr[2]}" ] && [ ! -w "${arr[2]}" ]; then
+                            echo "Error: No write permission to overwrite '${arr[2]}'"
+                            any_failed=1
+                            continue
+                        fi
                         #Fix for placing directories inside directories instead of replacing
                         [[ -d "${arr[2]}" ]] && mv "${arr[2]}" "${arr[2]}_old"
 
@@ -477,57 +557,61 @@ restore_files(){
 
                         grep -v "^${arr[0]}," "$METADATA_FILE" > "$METADATA_FILE.tmp"
                         mv "$METADATA_FILE.tmp" "$METADATA_FILE"
-                        chmod "${arr[6]}" "${arr[2]}" 
+                        chmod "${arr[6]}" "${arr[2]}"
 
                         echo "Sucessfully Overwrote \"${arr[1]}\""
                         log "Sucessfully Overwrote \"${arr[2]}\" with \"${arr[0]}\""
-                        continue
                         ;;
                     M)
                         local timestamp=$(date +%s)
                         mv "$RECYCLE_BIN_DIR/files/${arr[0]}" "${arr[2]}_$timestamp"
                         grep -v "^${arr[0]}," "$METADATA_FILE" > "$METADATA_FILE.tmp"
                         mv "$METADATA_FILE.tmp" "$METADATA_FILE"
-                        chmod "${arr[6]}" "${arr[2]}_$timestamp" 
+                        chmod "${arr[6]}" "${arr[2]}_$timestamp"
 
                         echo "Sucessfully restored \"${arr[1]}\" with name \"${arr[1]}_$timestamp\""
                         log "Sucessfully restored \"${arr[0]}\" at \"${arr[2]}_$timestamp\""
-                        continue
                         ;;
                     *)
                         echo "Restore operation for \"${arr[1]}\" was canceled"
                         log "Restore operation for \"${arr[0]}\" was canceled"
+                        any_failed=1
                         continue
                         ;;
 
                 esac
+            else
+                #Caso não exista
+
+                #Criar any parent dirs necessarios to avoid errors
+                mkdir -p "$(dirname "${arr[2]}")"
+
+                mv "$RECYCLE_BIN_DIR/files/${arr[0]}" "${arr[2]}"
+                grep -v "^${arr[0]}," "$METADATA_FILE" > "$METADATA_FILE.tmp"
+                mv "$METADATA_FILE.tmp" "$METADATA_FILE"
+                chmod "${arr[6]}" "${arr[2]}"
+
+                echo "\"${arr[1]}\" restored sucessfully"
+                log "\"${arr[0]}\" restored sucessfully"
             fi
-
-            #Caso não exista
-            
-            #Criar any parent dirs necessarios to avoid errors
-            mkdir -p "$(dirname "${arr[2]}")"
-            
-            mv "$RECYCLE_BIN_DIR/files/${arr[0]}" "${arr[2]}"
-            grep -v "^${arr[0]}," "$METADATA_FILE" > "$METADATA_FILE.tmp"
-            mv "$METADATA_FILE.tmp" "$METADATA_FILE"
-            chmod "${arr[6]}" "${arr[2]}"
-
-            echo "\"${arr[1]}\" restored sucessfully"
-            log "\"${arr[0]}\" restored sucessfully"
-            return 0
 
         fi
 
     done
 
+    # Retornar código de erro apropriado
+    if [ $any_failed -eq 1 ]; then
+        return 1
+    else
+        return 0
+    fi
 }
 
 #################################################
 # Function: search_recycled
-# Description: Restore files by id
+# Description: Search files in recycle bin
 # Parameters: Min 1 Max 2 ( -c and pattern)
-# Returns: 0 on success
+# Returns: 0 on success, 1 on failure
 #################################################
 search_recycled(){
 
@@ -553,21 +637,30 @@ search_recycled(){
         {
         read
         while read -r line;do
-            
-            IFS="," read -ra arr <<< "$line" 
+
+            IFS="," read -ra arr <<< "$line"
             local comparables=("${arr[1]}" "${arr[2]}")
             for compare in "${comparables[@]}"; do
-                
+
                 #Reference 1
                 if [[ "${compare,,}" =~ ${arg,,} ]] || [[ "${compare,,}" == ${arg,,} ]] ; then
                     results+=$(printf "│%-17s│%-25s│%-60s│\n" "${arr[0]}" "${arr[1]}" "${arr[2]}")
                     found=1
                     break
                 fi
-            
+
             done
 
         done } < "$METADATA_FILE"
+
+        if [ $found -eq 0 ]; then
+            echo "No matches found for '$arg'"
+            return 1  # ← CORREÇÃO: Retornar 1 quando não encontra resultados
+        else
+            echo "$results"
+            return 0
+        fi
+
         return 0
     fi
 
@@ -577,25 +670,27 @@ search_recycled(){
     {
     read
     while read -r line;do
-        
-        IFS="," read -ra arr <<< "$line" 
+
+        IFS="," read -ra arr <<< "$line"
         local comparables=("${arr[1]}" "${arr[2]}")
         for compare in "${comparables[@]}"; do
-            
+
             if [[ "$compare" =~ $arg ]] || [[ "$compare" = "$arg" ]]; then
                 results+=$(printf "\n│%-17s│%-25s│%-60s│\n" "${arr[0]}" "${arr[1]}" "${arr[2]}")
                 found=1
                 break
             fi
-        
+
         done
 
     done }< "$METADATA_FILE"
-    
+
     if [ $found -eq 0 ]; then
         echo "No matches found for '$arg'"
+        return 1  # ← CORREÇÃO: Retornar 1 quando não encontra resultados
     else
         echo "$results"
+        return 0
     fi
 
     return 0
@@ -604,7 +699,7 @@ search_recycled(){
 #################################################
 # Function: display_help
 # Description: Displays help
-# Parameters: 1 
+# Parameters: 1
 # Returns: 0 on success
 #################################################
 display_help(){
@@ -616,7 +711,7 @@ display_help(){
     printf "\n\tempty_recyclebin, -e              ./recycle_bin.sh -e [FLAG] [FILE_ID]\n\t\tIf an Id is provided, searches for ID in the recycle bin and permanently deletes it, if no Id it provided empties recycle bin of all contents.\n\t\tTakes one flag '--force' to skip user confirmation.\n"
     printf "\n\trestore_file, -r                  ./recycle_bin.sh -r [FILES_OR_IDS]\n\t\tRestores all files or directoried specified in the arguments if they exist in the recycle bin\n"
     printf "\n\tsearch_recycled, -s               ./recycle_bin.sh -s [FLAG] [Pattern]\n\t\tSearches the Recyclebin for any file whose name or path mathes the pattern argument.\n\t\tTakes one flag '-c' to make a Case insensitive search\n"
-    
+
     echo
     return 0
 }
@@ -699,10 +794,10 @@ auto_cleanup(){
     {
     read
     while read -ra line; do
-        
-        IFS=- read -r f1 f2 f3 <<< "$(date +%Y-%m-%d)" 
+
+        IFS=- read -r f1 f2 f3 <<< "$(date +%Y-%m-%d)"
         curr_date=$(( f1*365 + f2*30 + f3 ))
-        
+
         IFS=- read -r f1 f2 f3 <<< "$(cut -d ',' -f4 <<< "$line")"
         delete_date=$(( f1*365 + f2*30 + f3 ))
 
@@ -712,7 +807,7 @@ auto_cleanup(){
             empty_recyclebin --force "$id"
         fi
 
-    done 
+    done
     }< "$METADATA_FILE"
 
     echo "All items older than $retention_days deleted"
@@ -740,7 +835,7 @@ check_quota(){
     )
 
     local quota_bytes=$(($(head -n 1 "$RECYCLE_BIN_DIR/config" | cut -d '=' -f2)*1000000))
-    
+
     local percentage=$(echo "scale=10; $total_storage*100/$quota_bytes" | bc)
     echo "Quota used: $percentage%"
 
@@ -782,17 +877,30 @@ preview_file(){
 #################################################
 main(){
 
+    # If no arguments provided, show error
+    if [ $# -eq 0 ]; then
+        echo "Error: No command provided"
+        echo "Use './recycle_bin.sh -h' for help"
+        return 1
+    fi
+
     local first_arg=$1
     shift
 
     case $first_arg in
-    
+
         initialize_recyclebin | -i)
         initialize_recyclebin
         ;;
 
         delete_file | -d)
+        if [ $# -eq 0 ]; then
+            echo "Error: No files specified for deletion"
+            echo "Usage: ./recycle_bin.sh -d [FILES]"
+            return 1
+        fi
         delete_file "$@"
+        exit $?
         ;;
 
         list_recycled | -l)
@@ -801,14 +909,27 @@ main(){
 
         empty_recyclebin | -e)
         empty_recyclebin "$@"
+        exit $?
         ;;
 
         restore_file | -r)
+        if [ $# -eq 0 ]; then
+            echo "Error: No files or IDs specified for restoration"
+            echo "Usage: ./recycle_bin.sh -r [FILES_OR_IDS]"
+            return 1
+        fi
         restore_files "$@"
+        exit $?
         ;;
 
         search_recycled | -s)
+        if [ $# -eq 0 ]; then
+            echo "Error: No search pattern specified"
+            echo "Usage: ./recycle_bin.sh -s [PATTERN]"
+            return 1
+        fi
         search_recycled "$@"
+        exit $?
         ;;
 
         display_help | help | -h | --help)
@@ -828,12 +949,20 @@ main(){
         ;;
 
         preview_file | -P )
+        if [ $# -eq 0 ]; then
+            echo "Error: No file ID specified for preview"
+            echo "Usage: ./recycle_bin.sh -P [FILE_ID]"
+            return 1
+        fi
         preview_file "$@"
         ;;
 
         *)
-        echo "Unknown command"
+        echo "Error: Unknown command '$first_arg'"
+        echo "Use './recycle_bin.sh -h' for available commands"
+        return 1
         ;;
+
 
     esac
     return 0

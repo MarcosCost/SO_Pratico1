@@ -1,7 +1,8 @@
 # Linux Recycle Bin System
-## Author
 
-Marcos Costa 125882 <br> [Your Name] [Your Student ID]
+**Student Name:** Marcos Costa, José Mendes  
+**Student ID:** 125882, 114429 
+
 ## Description
 This is a recycle bin system for linux based systems. It includes, among other features, file deletion/restauration, and recycle bin's content listing/searching/emptying.
 ## Installation
