@@ -128,6 +128,40 @@ delete_file(){
             any_failed=1
             continue
         fi
+
+        # Check if we have read permission
+        if [ ! -r "$var" ]; then
+            echo "Error: No read permission for '$var'"
+            log "Failed to delete $var - No read permission"
+            any_failed=1
+            continue
+        fi
+
+        # Check if we have write permission to the directory containing the file
+        local parent_dir=$(dirname "$var")
+        if [ ! -w "$parent_dir" ]; then
+            echo "Error: No write permission in directory for '$var'"
+            log "Failed to delete $var - No write permission in parent directory"
+            any_failed=1
+            continue
+        fi
+
+        # Check if we have write permission to the file itself (for files)
+        if [ -f "$var" ] && [ ! -w "$var" ]; then
+            echo "Error: No write permission for file '$var'"
+            log "Failed to delete $var - No write permission for file"
+            any_failed=1
+            continue
+        fi
+
+        # Check if we have execute permission for directories
+        if [ -d "$var" ] && [ ! -x "$var" ]; then
+            echo "Error: No execute permission for directory '$var'"
+            log "Failed to delete $var - No execute permission for directory"
+            any_failed=1
+            continue
+        fi
+
         local abs_path=$(realpath "$var" 2>/dev/null)
         #Não deletar a recycle bin itself
         if [[ "$abs_path" == "$(realpath "$RECYCLE_BIN_DIR" 2>/dev/null)"* ]] ||
@@ -382,7 +416,8 @@ empty_recyclebin(){
 restore_files(){
 
     if [[ "$#" -lt 1 ]]; then
-        echo "Restore Files needs at least 1 argument"
+        echo "Error: Restore Files needs at least 1 argument"
+        echo "Usage: ./recycle_bin.sh -r [ID_OR_FILENAME]"
         return 1
     fi
 
@@ -404,6 +439,15 @@ restore_files(){
             #Split metadata into array
             IFS=',' read -ra arr <<< "$(grep "^$var," "$METADATA_FILE")"
 
+            # Check if we have write permission to restore location
+            local restore_dir=$(dirname "${arr[2]}")
+            if [ ! -w "$restore_dir" ] && [ ! -w "$(dirname "$restore_dir")" ]; then
+                echo "Error: No write permission to restore to '${arr[2]}'"
+                log "Failed to restore ${arr[0]} - No write permission to destination"
+                any_failed=1
+                continue
+            fi
+
             #Caso ja exista
             if [[ -e "${arr[2]}" ]];then
 
@@ -412,7 +456,14 @@ restore_files(){
                 read -r confirmation
 
                 case "$confirmation" in
-                    O)
+                    O|o)
+                        # Check write permission for overwrite
+                        if [ -f "${arr[2]}" ] && [ ! -w "${arr[2]}" ]; then
+                            echo "Error: No write permission to overwrite '${arr[2]}'"
+                            any_failed=1
+                            continue
+                        fi
+
                         #Fix for placing directories inside directories instead of replacing
                         [[ -d "${arr[2]}" ]] && mv "${arr[2]}" "${arr[2]}_old"
 
@@ -427,7 +478,7 @@ restore_files(){
                         echo "Sucessfully Overwrote \"${arr[1]}\""
                         log "Sucessfully Overwrote \"${arr[2]}\" with \"${arr[0]}\""
                         ;;
-                    M)
+                    M|m)
                         local timestamp=$(date +%s)
                         mv "$RECYCLE_BIN_DIR/files/${arr[0]}" "${arr[2]}_$timestamp"
                         grep -v "^${arr[0]}," "$METADATA_FILE" > "$METADATA_FILE.tmp"
@@ -473,6 +524,15 @@ restore_files(){
             #Split metadata into array
             IFS=',' read -ra arr <<< "$(grep ",$var," "$METADATA_FILE")"
 
+            # Check if we have write permission to restore location
+            local restore_dir=$(dirname "${arr[2]}")
+            if [ ! -w "$restore_dir" ] && [ ! -w "$(dirname "$restore_dir")" ]; then
+                echo "Error: No write permission to restore to '${arr[2]}'"
+                log "Failed to restore ${arr[0]} - No write permission to destination"
+                any_failed=1
+                continue
+            fi
+
             #Caso ja exista
             if [[ -e "${arr[2]}" ]];then
 
@@ -481,7 +541,13 @@ restore_files(){
                 read -r confirmation
 
                 case "$confirmation" in
-                    O)
+                    O|o)
+                        # Check write permission for overwrite
+                        if [ -f "${arr[2]}" ] && [ ! -w "${arr[2]}" ]; then
+                            echo "Error: No write permission to overwrite '${arr[2]}'"
+                            any_failed=1
+                            continue
+                        fi
                         #Fix for placing directories inside directories instead of replacing
                         [[ -d "${arr[2]}" ]] && mv "${arr[2]}" "${arr[2]}_old"
 
@@ -811,6 +877,13 @@ preview_file(){
 #################################################
 main(){
 
+    # If no arguments provided, show error
+    if [ $# -eq 0 ]; then
+        echo "Error: No command provided"
+        echo "Use './recycle_bin.sh -h' for help"
+        return 1
+    fi
+
     local first_arg=$1
     shift
 
@@ -821,6 +894,11 @@ main(){
         ;;
 
         delete_file | -d)
+        if [ $# -eq 0 ]; then
+            echo "Error: No files specified for deletion"
+            echo "Usage: ./recycle_bin.sh -d [FILES]"
+            return 1
+        fi
         delete_file "$@"
         exit $?
         ;;
@@ -835,11 +913,21 @@ main(){
         ;;
 
         restore_file | -r)
+        if [ $# -eq 0 ]; then
+            echo "Error: No files or IDs specified for restoration"
+            echo "Usage: ./recycle_bin.sh -r [FILES_OR_IDS]"
+            return 1
+        fi
         restore_files "$@"
         exit $?
         ;;
 
         search_recycled | -s)
+        if [ $# -eq 0 ]; then
+            echo "Error: No search pattern specified"
+            echo "Usage: ./recycle_bin.sh -s [PATTERN]"
+            return 1
+        fi
         search_recycled "$@"
         exit $?
         ;;
@@ -861,12 +949,20 @@ main(){
         ;;
 
         preview_file | -P )
+        if [ $# -eq 0 ]; then
+            echo "Error: No file ID specified for preview"
+            echo "Usage: ./recycle_bin.sh -P [FILE_ID]"
+            return 1
+        fi
         preview_file "$@"
         ;;
 
         *)
-        echo "Unknown command"
+        echo "Error: Unknown command '$first_arg'"
+        echo "Use './recycle_bin.sh -h' for available commands"
+        return 1
         ;;
+
 
     esac
     return 0
